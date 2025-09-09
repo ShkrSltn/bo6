@@ -213,13 +213,13 @@ const getTotalWinsForPlayer = (playerId: number) => {
 const getSeasonWinsForPlayer = (playerId: number) => {
   return seasons.value.reduce((total, season) => {
     if (season.players.length === 0) return total
-    
+
     // Определяем победителей сезона (игроки с наибольшим количеством очков)
     const maxPoints = Math.max(...season.players.map(p => p.points))
     const seasonWinners = season.players
       .filter(p => p.points === maxPoints)
       .map(p => p.playerId)
-    
+
     return total + (seasonWinners.includes(playerId) ? 1 : 0)
   }, 0)
 }
@@ -227,7 +227,7 @@ const getSeasonWinsForPlayer = (playerId: number) => {
 // Get current season winners (can be multiple if tied)
 const getCurrentSeasonWinners = () => {
   if (!currentSeason.value || currentSeason.value.players.length === 0) return []
-  
+
   const maxPoints = Math.max(...currentSeason.value.players.map(p => p.points))
   return currentSeason.value.players.filter(p => p.points === maxPoints)
 }
@@ -334,9 +334,9 @@ const clearAllData = async () => {
   }
 }
 
-// Computed leaderboard
+// Computed leaderboard with proper tie handling
 const leaderboard = computed(() => {
-  return [...players.value]
+  const sortedPlayers = [...players.value]
     .sort((a, b) => {
       // First by points (descending)
       if (b.points !== a.points) return b.points - a.points
@@ -345,7 +345,19 @@ const leaderboard = computed(() => {
       // Then by name (ascending)
       return a.name.localeCompare(b.name)
     })
-    .map((player, index) => ({ ...player, rank: index + 1 }))
+
+  // Assign ranks with proper tie handling
+  let currentRank = 1
+  return sortedPlayers.map((player, index) => {
+    if (index > 0) {
+      const prevPlayer = sortedPlayers[index - 1]
+      // Only increment rank if points AND wins are different
+      if (player.points !== prevPlayer.points || player.wins !== prevPlayer.wins) {
+        currentRank = index + 1
+      }
+    }
+    return { ...player, rank: currentRank }
+  })
 })
 
 // Computed wins ranking (sorted by wins only) - current season
@@ -361,9 +373,9 @@ const winsRanking = computed(() => {
 
 // Computed global wins ranking (all seasons combined)
 const globalWinsRanking = computed(() => {
-  const playerStatsMap = new Map<number, { 
-    name: string; 
-    totalMatchWins: number; 
+  const playerStatsMap = new Map<number, {
+    name: string;
+    totalMatchWins: number;
     seasonWins: number;
     seasonsParticipated: number;
   }>()
@@ -382,7 +394,7 @@ const globalWinsRanking = computed(() => {
     season.players.forEach(player => {
       const existing = playerStatsMap.get(player.playerId)
       const isSeasonWinner = seasonWinners.includes(player.playerId)
-      
+
       if (existing) {
         existing.totalMatchWins += player.wins
         if (isSeasonWinner) existing.seasonWins += 1
@@ -697,58 +709,61 @@ onMounted(() => {
                     <!-- 2nd Place -->
                     <div class="podium-item podium-second" v-if="leaderboard[1]">
                       <div class="podium-player">
-                        <div class="podium-avatar">
+                        <div class="podium-avatar" :class="{ 'champion': leaderboard[1].rank === 1 }">
                           <span class="material-icons">person</span>
                         </div>
-                        <div class="podium-medal silver">
-                          <span class="material-icons">workspace_premium</span>
-                          <span class="medal-number">2</span>
+                        <div class="podium-medal" :class="getRankClass(leaderboard[1].rank)">
+                          <span class="material-icons">{{ getRankIcon(leaderboard[1].rank) }}</span>
+                          <span class="medal-number">{{ leaderboard[1].rank }}</span>
                         </div>
-                        <div class="podium-name">{{ leaderboard[1].name }}</div>
+                        <div class="podium-name" :class="{ 'champion-name': leaderboard[1].rank === 1 }">{{
+                          leaderboard[1].name }}</div>
                         <div class="podium-stats">
                           <div class="stat">{{ leaderboard[1].points }} очков</div>
                           <div class="stat">{{ leaderboard[1].wins }} побед</div>
                         </div>
                       </div>
-                      <div class="podium-base podium-base-2"></div>
+                      <div class="podium-base" :class="`podium-base-${leaderboard[1].rank}`"></div>
                     </div>
 
                     <!-- 1st Place -->
                     <div class="podium-item podium-first" v-if="leaderboard[0]">
                       <div class="podium-player">
-                        <div class="podium-avatar champion">
+                        <div class="podium-avatar" :class="{ 'champion': leaderboard[0].rank === 1 }">
                           <span class="material-icons">person</span>
                         </div>
-                        <div class="podium-medal gold">
-                          <span class="material-icons">emoji_events</span>
-                          <span class="medal-number">1</span>
+                        <div class="podium-medal" :class="getRankClass(leaderboard[0].rank)">
+                          <span class="material-icons">{{ getRankIcon(leaderboard[0].rank) }}</span>
+                          <span class="medal-number">{{ leaderboard[0].rank }}</span>
                         </div>
-                        <div class="podium-name champion-name">{{ leaderboard[0].name }}</div>
+                        <div class="podium-name" :class="{ 'champion-name': leaderboard[0].rank === 1 }">{{
+                          leaderboard[0].name }}</div>
                         <div class="podium-stats">
                           <div class="stat">{{ leaderboard[0].points }} очков</div>
                           <div class="stat">{{ leaderboard[0].wins }} побед</div>
                         </div>
                       </div>
-                      <div class="podium-base podium-base-1"></div>
+                      <div class="podium-base" :class="`podium-base-${leaderboard[0].rank}`"></div>
                     </div>
 
                     <!-- 3rd Place -->
                     <div class="podium-item podium-third" v-if="leaderboard[2]">
                       <div class="podium-player">
-                        <div class="podium-avatar">
+                        <div class="podium-avatar" :class="{ 'champion': leaderboard[2].rank === 1 }">
                           <span class="material-icons">person</span>
                         </div>
-                        <div class="podium-medal bronze">
-                          <span class="material-icons">workspace_premium</span>
-                          <span class="medal-number">3</span>
+                        <div class="podium-medal" :class="getRankClass(leaderboard[2].rank)">
+                          <span class="material-icons">{{ getRankIcon(leaderboard[2].rank) }}</span>
+                          <span class="medal-number">{{ leaderboard[2].rank }}</span>
                         </div>
-                        <div class="podium-name">{{ leaderboard[2].name }}</div>
+                        <div class="podium-name" :class="{ 'champion-name': leaderboard[2].rank === 1 }">{{
+                          leaderboard[2].name }}</div>
                         <div class="podium-stats">
                           <div class="stat">{{ leaderboard[2].points }} очков</div>
                           <div class="stat">{{ leaderboard[2].wins }} побед</div>
                         </div>
                       </div>
-                      <div class="podium-base podium-base-3"></div>
+                      <div class="podium-base" :class="`podium-base-${leaderboard[2].rank}`"></div>
                     </div>
                   </div>
                 </div>
@@ -756,12 +771,12 @@ onMounted(() => {
                 <!-- Detailed Leaderboard -->
                 <div class="leaderboard-list">
                   <div v-for="(player, index) in leaderboard" :key="player.id" class="leaderboard-item-enhanced"
-                    :class="{ 'top-three': index < 3 }">
+                    :class="{ 'top-three': player.rank <= 3 }">
 
                     <div class="player-rank">
-                      <div class="rank-circle" :class="getRankClass(index + 1)">
-                        <span v-if="index < 3" class="material-icons">{{ getRankIcon(index + 1) }}</span>
-                        <span v-else class="rank-number">{{ index + 1 }}</span>
+                      <div class="rank-circle" :class="getRankClass(player.rank)">
+                        <span v-if="player.rank <= 3" class="material-icons">{{ getRankIcon(player.rank) }}</span>
+                        <span v-else class="rank-number">{{ player.rank }}</span>
                       </div>
                     </div>
 
@@ -820,11 +835,12 @@ onMounted(() => {
                 <span class="material-icons">emoji_events</span>
                 Глобальный рейтинг
               </h3>
-              <div class="subtitle">Выигранные сезоны и общие победы в матчах<br><small>При равных очках в сезоне все лидеры считаются победителями</small></div>
+              <div class="subtitle">Выигранные сезоны и общие победы в матчах<br><small>При равных очках в сезоне все
+                  лидеры считаются победителями</small></div>
               <div class="wins-ranking">
                 <div v-for="(player, index) in globalWinsRanking" :key="player.playerId" class="wins-ranking-item">
-                  <div class="wins-rank" :class="{ 
-                    'rank-champion': globalWinsRanking.length > 0 && player.seasonWins === globalWinsRanking[0].seasonWins && player.seasonWins > 0 
+                  <div class="wins-rank" :class="{
+                    'rank-champion': globalWinsRanking.length > 0 && player.seasonWins === globalWinsRanking[0].seasonWins && player.seasonWins > 0
                   }">{{ index + 1 }}</div>
                   <div class="wins-player">
                     <div class="wins-player-name">{{ player.name }}</div>
@@ -839,7 +855,9 @@ onMounted(() => {
                       </div>
                     </div>
                   </div>
-                  <div v-if="globalWinsRanking.length > 0 && player.seasonWins === globalWinsRanking[0].seasonWins && player.seasonWins > 0" class="champion-badge">
+                  <div
+                    v-if="globalWinsRanking.length > 0 && player.seasonWins === globalWinsRanking[0].seasonWins && player.seasonWins > 0"
+                    class="champion-badge">
                     <span class="material-icons">star</span>
                   </div>
                 </div>
@@ -1008,7 +1026,8 @@ onMounted(() => {
               <div v-for="player in players" :key="player.id" class="match-player">
                 <span class="player-name">{{ player.name }}</span>
                 <div class="position-controls">
-                  <select @change="addToCurrentMatch(player.playerId, parseInt(($event.target as HTMLSelectElement).value))"
+                  <select
+                    @change="addToCurrentMatch(player.playerId, parseInt(($event.target as HTMLSelectElement).value))"
                     :value="getPlayerPosition(player.playerId) || ''" class="position-select">
                     <option value="">Выберите место</option>
                     <option value="1">1 место (3 очка, при делении 2.5)</option>
@@ -2594,6 +2613,11 @@ onMounted(() => {
   color: white;
 }
 
+.podium-medal.default {
+  background: linear-gradient(45deg, #6c757d, #495057);
+  color: white;
+}
+
 .medal-number {
   position: absolute;
   font-weight: 800;
@@ -2648,6 +2672,15 @@ onMounted(() => {
   height: 70px;
   background: linear-gradient(45deg, #cd7f32, #daa520);
   box-shadow: 0 -5px 20px rgba(205, 127, 50, 0.3);
+}
+
+/* Default podium base for ranks 4+ */
+.podium-base-4,
+.podium-base-5,
+.podium-base-6 {
+  height: 50px;
+  background: linear-gradient(45deg, #6c757d, #495057);
+  box-shadow: 0 -5px 20px rgba(108, 117, 125, 0.3);
 }
 
 /* Enhanced Leaderboard List */
