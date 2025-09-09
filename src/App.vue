@@ -210,6 +210,34 @@ const getTotalWinsForPlayer = (playerId: number) => {
   }, 0)
 }
 
+const getSeasonWinsForPlayer = (playerId: number) => {
+  return seasons.value.reduce((total, season) => {
+    if (season.players.length === 0) return total
+    
+    // Определяем победителей сезона (игроки с наибольшим количеством очков)
+    const maxPoints = Math.max(...season.players.map(p => p.points))
+    const seasonWinners = season.players
+      .filter(p => p.points === maxPoints)
+      .map(p => p.playerId)
+    
+    return total + (seasonWinners.includes(playerId) ? 1 : 0)
+  }, 0)
+}
+
+// Get current season winners (can be multiple if tied)
+const getCurrentSeasonWinners = () => {
+  if (!currentSeason.value || currentSeason.value.players.length === 0) return []
+  
+  const maxPoints = Math.max(...currentSeason.value.players.map(p => p.points))
+  return currentSeason.value.players.filter(p => p.points === maxPoints)
+}
+
+// Check if player is current season winner
+const isCurrentSeasonWinner = (playerId: number) => {
+  const winners = getCurrentSeasonWinners()
+  return winners.some(w => w.playerId === playerId)
+}
+
 // Season player management
 const addPlayerToSeason = async (playerId: number) => {
   if (!currentSeason.value || isLoading.value) return
@@ -333,41 +361,65 @@ const winsRanking = computed(() => {
 
 // Computed global wins ranking (all seasons combined)
 const globalWinsRanking = computed(() => {
-  const playerWinsMap = new Map<number, { name: string; totalWins: number }>()
+  const playerStatsMap = new Map<number, { 
+    name: string; 
+    totalMatchWins: number; 
+    seasonWins: number;
+    seasonsParticipated: number;
+  }>()
 
-  // Собираем победы из всех сезонов для каждого глобального игрока
+  // Собираем статистику из всех сезонов для каждого глобального игрока
   seasons.value.forEach(season => {
+    // Определяем победителей сезона (игроки с наибольшим количеством очков)
+    let seasonWinners: number[] = []
+    if (season.players.length > 0) {
+      const maxPoints = Math.max(...season.players.map(p => p.points))
+      seasonWinners = season.players
+        .filter(p => p.points === maxPoints)
+        .map(p => p.playerId)
+    }
+
     season.players.forEach(player => {
-      const existing = playerWinsMap.get(player.playerId)
+      const existing = playerStatsMap.get(player.playerId)
+      const isSeasonWinner = seasonWinners.includes(player.playerId)
+      
       if (existing) {
-        existing.totalWins += player.wins
+        existing.totalMatchWins += player.wins
+        if (isSeasonWinner) existing.seasonWins += 1
+        existing.seasonsParticipated += 1
       } else {
-        playerWinsMap.set(player.playerId, {
+        playerStatsMap.set(player.playerId, {
           name: player.name,
-          totalWins: player.wins
+          totalMatchWins: player.wins,
+          seasonWins: isSeasonWinner ? 1 : 0,
+          seasonsParticipated: 1
         })
       }
     })
   })
 
   // Конвертируем в массив и сортируем
-  return Array.from(playerWinsMap.entries())
+  return Array.from(playerStatsMap.entries())
     .map(([playerId, data]) => ({
       playerId,
       name: data.name,
-      totalWins: data.totalWins
+      totalMatchWins: data.totalMatchWins,
+      seasonWins: data.seasonWins,
+      seasonsParticipated: data.seasonsParticipated
     }))
     .sort((a, b) => {
-      // Sort by total wins (descending)
-      if (b.totalWins !== a.totalWins) return b.totalWins - a.totalWins
+      // Sort by season wins first (descending)
+      if (b.seasonWins !== a.seasonWins) return b.seasonWins - a.seasonWins
+      // Then by total match wins (descending)
+      if (b.totalMatchWins !== a.totalMatchWins) return b.totalMatchWins - a.totalMatchWins
       // Then by name (ascending)
       return a.name.localeCompare(b.name)
     })
 })
 
-// Get player name by ID
+// Get player name by playerId (global player ID)
 const getPlayerName = (playerId: number): string => {
-  return players.value.find(p => p.id === playerId)?.name || 'Unknown'
+  return players.value.find(p => p.playerId === playerId)?.name || 'Unknown'
 }
 
 // Check if player is in current match
@@ -768,18 +820,26 @@ onMounted(() => {
                 <span class="material-icons">emoji_events</span>
                 Глобальный рейтинг
               </h3>
-              <div class="subtitle">Общие победы во всех сезонах</div>
+              <div class="subtitle">Выигранные сезоны и общие победы в матчах<br><small>При равных очках в сезоне все лидеры считаются победителями</small></div>
               <div class="wins-ranking">
                 <div v-for="(player, index) in globalWinsRanking" :key="player.playerId" class="wins-ranking-item">
-                  <div class="wins-rank" :class="{ 'rank-champion': index === 0 }">{{ index + 1 }}</div>
+                  <div class="wins-rank" :class="{ 
+                    'rank-champion': globalWinsRanking.length > 0 && player.seasonWins === globalWinsRanking[0].seasonWins && player.seasonWins > 0 
+                  }">{{ index + 1 }}</div>
                   <div class="wins-player">
                     <div class="wins-player-name">{{ player.name }}</div>
-                    <div class="wins-count">
-                      <span class="material-icons">military_tech</span>
-                      {{ player.totalWins }} побед
+                    <div class="wins-stats">
+                      <div class="wins-count">
+                        <span class="material-icons">emoji_events</span>
+                        {{ player.seasonWins }} сезонов
+                      </div>
+                      <div class="wins-count">
+                        <span class="material-icons">military_tech</span>
+                        {{ player.totalMatchWins }} побед
+                      </div>
                     </div>
                   </div>
-                  <div v-if="index === 0" class="champion-badge">
+                  <div v-if="globalWinsRanking.length > 0 && player.seasonWins === globalWinsRanking[0].seasonWins && player.seasonWins > 0" class="champion-badge">
                     <span class="material-icons">star</span>
                   </div>
                 </div>
@@ -948,8 +1008,8 @@ onMounted(() => {
               <div v-for="player in players" :key="player.id" class="match-player">
                 <span class="player-name">{{ player.name }}</span>
                 <div class="position-controls">
-                  <select @change="addToCurrentMatch(player.id, parseInt(($event.target as HTMLSelectElement).value))"
-                    :value="getPlayerPosition(player.id) || ''" class="position-select">
+                  <select @change="addToCurrentMatch(player.playerId, parseInt(($event.target as HTMLSelectElement).value))"
+                    :value="getPlayerPosition(player.playerId) || ''" class="position-select">
                     <option value="">Выберите место</option>
                     <option value="1">1 место (3 очка, при делении 2.5)</option>
                     <option value="2">2 место (1 очко, при делении 1.5)</option>
@@ -958,7 +1018,7 @@ onMounted(() => {
                     <option value="5">5 место (0 очков)</option>
                     <option value="6">6 место (0 очков)</option>
                   </select>
-                  <button v-if="isPlayerInMatch(player.id)" @click="removeFromCurrentMatch(player.id)"
+                  <button v-if="isPlayerInMatch(player.playerId)" @click="removeFromCurrentMatch(player.playerId)"
                     class="btn btn-danger btn-small">
                     <span class="material-icons">remove</span> Убрать
                   </button>
@@ -1041,8 +1101,8 @@ onMounted(() => {
                       <span class="player-name">{{ player.name }}</span>
                       <div class="position-controls">
                         <select
-                          @change="updateEditingMatchPlayer(player.id, parseInt(($event.target as HTMLSelectElement).value))"
-                          :value="editingMatch.players.find(p => p.playerId === player.id)?.position || ''"
+                          @change="updateEditingMatchPlayer(player.playerId, parseInt(($event.target as HTMLSelectElement).value))"
+                          :value="editingMatch.players.find(p => p.playerId === player.playerId)?.position || ''"
                           class="position-select">
                           <option value="">Не участвует</option>
                           <option value="1">1 место</option>
@@ -1052,8 +1112,8 @@ onMounted(() => {
                           <option value="5">5 место</option>
                           <option value="6">6 место</option>
                         </select>
-                        <button v-if="editingMatch.players.some(p => p.playerId === player.id)"
-                          @click="removeEditingMatchPlayer(player.id)" class="btn btn-danger btn-small">
+                        <button v-if="editingMatch.players.some(p => p.playerId === player.playerId)"
+                          @click="removeEditingMatchPlayer(player.playerId)" class="btn btn-danger btn-small">
                           <span class="material-icons">remove</span> Убрать
                         </button>
                       </div>
@@ -1149,8 +1209,12 @@ onMounted(() => {
                         <span class="material-icons">calendar_today</span>
                         {{ getSeasonsForPlayer(player.id).length }} сезонов
                       </span>
-                      <span class="total-wins">
+                      <span class="season-wins">
                         <span class="material-icons">emoji_events</span>
+                        {{ getSeasonWinsForPlayer(player.id) }} сезонов
+                      </span>
+                      <span class="total-wins">
+                        <span class="material-icons">military_tech</span>
                         {{ getTotalWinsForPlayer(player.id) }} побед
                       </span>
                     </div>
@@ -1878,6 +1942,12 @@ onMounted(() => {
   font-style: italic;
 }
 
+.subtitle small {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: normal;
+}
+
 .wins-ranking {
   display: flex;
   flex-direction: column;
@@ -1922,6 +1992,12 @@ onMounted(() => {
   color: #fff;
   margin-bottom: 4px;
   word-break: break-word;
+}
+
+.wins-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .wins-count {
@@ -2055,6 +2131,7 @@ onMounted(() => {
 }
 
 .seasons-count,
+.season-wins,
 .total-wins {
   display: flex;
   align-items: center;
