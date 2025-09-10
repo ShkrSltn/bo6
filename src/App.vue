@@ -1034,10 +1034,15 @@ onMounted(() => {
                     <!-- Winner highlight -->
                     <div class="match-winner">
                       <span class="material-icons">emoji_events</span>
-                      <span class="winner-text">Победитель:</span>
-                      <span class="winner-name">{{getPlayerName(match.players.find(p => p.position === 1)?.playerId ||
-                        0)
-                      }}</span>
+                      <span class="winner-text">{{match.players.filter(p => p.position === 1).length > 1 ?
+                        'Победители:' : 'Победитель:'}}</span>
+                      <div class="winners-list">
+                        <span v-for="(winner, index) in match.players.filter(p => p.position === 1)"
+                          :key="winner.playerId" class="winner-name">
+                          {{ getPlayerName(winner.playerId) }}{{index < match.players.filter(p => p.position ===
+                            1).length - 1 ? ', ' : ''}}
+                        </span>
+                      </div>
                       <span class="winner-score">{{match.players.find(p => p.position === 1)?.winsInMatch}}
                         побед</span>
                     </div>
@@ -1085,7 +1090,7 @@ onMounted(() => {
                   <div class="global-stat-content">
                     <div class="global-stat-number">{{seasons.reduce((sum, season) => sum + season.matches.length, 0)
                     }}</div>
-                    <div class="global-stat-label">матчей</div>
+                    <div class="global-stat-label">дней</div>
                   </div>
                 </div>
 
@@ -1403,9 +1408,15 @@ onMounted(() => {
                 <div class="winner-highlight">
                   <div class="winner-info">
                     <span class="material-icons">emoji_events</span>
-                    <span class="winner-label">Победитель:</span>
-                    <span class="winner-name">{{getPlayerName(match.players.find(p => p.position === 1)?.playerId || 0)
-                    }}</span>
+                    <span class="winner-label">{{match.players.filter(p => p.position === 1).length > 1 ? 'Победители:'
+                      : 'Победитель:'}}</span>
+                    <div class="winners-list">
+                      <span v-for="(winner, index) in match.players.filter(p => p.position === 1)"
+                        :key="winner.playerId" class="winner-name">
+                        {{ getPlayerName(winner.playerId) }}{{index < match.players.filter(p => p.position === 1).length
+                          - 1 ? ', ' : ''}}
+                      </span>
+                    </div>
                     <span class="winner-performance">{{match.players.find(p => p.position === 1)?.winsInMatch}}
                       побед</span>
                   </div>
@@ -2696,6 +2707,12 @@ onMounted(() => {
   color: #ffd700;
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+.winners-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .winner-score {
