@@ -23,6 +23,7 @@ const editingSeason = ref<{ id: number; name: string } | null>(null)
 const editingMatch = ref<{ id: number; players: { playerId: number; winsInMatch: number }[] } | null>(null)
 const showMatchDetails = ref<{ [key: number]: boolean }>({})
 const showPlayerDetails = ref<{ [key: number]: boolean }>({})
+const showAddMatchModal = ref(false)
 
 // Computed current season
 const currentSeason = computed(() => {
@@ -421,6 +422,18 @@ const removeFromCurrentMatch = (playerId: number) => {
   currentMatch.value = currentMatch.value.filter(m => m.playerId !== playerId)
 }
 
+// Modal functions
+const openAddMatchModal = () => {
+  if (!currentSeason.value || players.value.length === 0) return
+  currentMatch.value = []
+  showAddMatchModal.value = true
+}
+
+const closeAddMatchModal = () => {
+  showAddMatchModal.value = false
+  currentMatch.value = []
+}
+
 // Save current match
 const saveMatch = async () => {
   if (currentMatch.value.length === 0 || !currentSeason.value || isLoading.value) return
@@ -439,8 +452,11 @@ const saveMatch = async () => {
     const savedMatch = await scoreboardService.saveMatch(currentSeason.value.id, matchPlayersWithPoints)
     if (savedMatch) {
       await loadSeasons()
-      // Clear current match
+      // Clear current match and close modal
       currentMatch.value = []
+      if (showAddMatchModal.value) {
+        showAddMatchModal.value = false
+      }
     }
   } catch (error) {
     console.error('Error saving match:', error)
@@ -875,6 +891,12 @@ onMounted(() => {
           </div>
         </section>
 
+        <!-- Floating Add Match Button -->
+        <button v-if="currentSeason && players.length > 0" @click="openAddMatchModal" class="floating-add-btn"
+          title="Добавить новый матч">
+          <span class="material-icons">add</span>
+        </button>
+
         <!-- Main Content with Sidebar -->
         <div class="main-layout" v-if="currentSeason">
           <!-- Main Content Area -->
@@ -998,7 +1020,7 @@ onMounted(() => {
                       <div class="stat-item">
                         <span class="material-icons">emoji_events</span>
                         <span class="stat-value">{{ getSeasonMatchWinsForPlayer(player.playerId, currentSeasonId || 0)
-                          }}</span>
+                        }}</span>
                         <span class="stat-label">матчей</span>
                       </div>
                       <div class="stat-item">
@@ -1534,7 +1556,7 @@ onMounted(() => {
                 <div v-else class="global-player-info">
                   <div class="global-player-details">
                     <span class="global-player-name" @dblclick="startEditingGlobalPlayer(player)">{{ player.name
-                    }}</span>
+                      }}</span>
                     <div class="global-player-meta">
                       <span class="seasons-count">
                         <span class="material-icons">calendar_today</span>
@@ -1557,7 +1579,7 @@ onMounted(() => {
                   <div class="global-player-controls">
                     <button @click="togglePlayerDetails(player.id)" class="btn btn-secondary btn-small">
                       <span class="material-icons">{{ showPlayerDetails[player.id] ? 'expand_less' : 'expand_more'
-                      }}</span>
+                        }}</span>
                       Детали
                     </button>
                     <button @click="startEditingGlobalPlayer(player)" class="btn btn-secondary btn-small">
@@ -1651,6 +1673,73 @@ onMounted(() => {
             </div>
           </div>
         </section>
+      </div>
+    </div>
+
+    <!-- Add Match Modal -->
+    <div v-if="showAddMatchModal" class="modal-overlay" @click="closeAddMatchModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">
+            <span class="material-icons">add_circle</span>
+            Добавить новый матч
+          </h2>
+          <button @click="closeAddMatchModal" class="modal-close-btn">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="match-players-modal">
+            <div v-for="player in players" :key="player.id" class="modal-player-entry">
+              <div class="player-info-modal">
+                <span class="player-name-modal">{{ player.name }}</span>
+                <div class="player-current-stats">
+                  <span class="current-points">{{ player.points }} очков</span>
+                  <span class="current-wins">{{ player.wins }} побед</span>
+                </div>
+              </div>
+              <div class="wins-input-container">
+                <input type="number" min="0" max="50" placeholder="0"
+                  :value="getPlayerWinsInMatch(player.playerId) || ''"
+                  @input="addToCurrentMatch(player.playerId, parseInt(($event.target as HTMLInputElement).value) || 0)"
+                  class="wins-input-modal" />
+                <label class="wins-label">побед</label>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="currentMatch.length > 0" class="match-preview-modal">
+            <div class="preview-header">
+              <h3>Предварительные результаты</h3>
+              <span class="participants-count">{{ currentMatch.length }} участников</span>
+            </div>
+
+            <div class="preview-results">
+              <div v-for="result in calculatePositionsFromWins(currentMatch)" :key="result.playerId"
+                class="preview-result">
+                <div class="result-position-modal" :class="`position-${result.position}`">{{ result.position }}</div>
+                <div class="result-info-modal">
+                  <span class="player-name-result">{{ getPlayerName(result.playerId) }}</span>
+                  <span class="wins-count-result">{{ result.winsInMatch }} побед</span>
+                </div>
+                <div class="points-earned-modal">+{{ calculatePoints(result.position,
+                  calculatePositionsFromWins(currentMatch)) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeAddMatchModal" class="btn btn-secondary">
+            <span class="material-icons">close</span>
+            Отмена
+          </button>
+          <button @click="saveMatch" class="btn btn-success" :disabled="currentMatch.length === 0 || isLoading">
+            <span class="material-icons">save</span>
+            {{ isLoading ? 'Сохранение...' : 'Сохранить матч' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2805,6 +2894,289 @@ onMounted(() => {
   padding: 8px;
 }
 
+/* Floating Add Button */
+.floating-add-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.4);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating-add-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 25px rgba(255, 107, 53, 0.6);
+}
+
+.floating-add-btn .material-icons {
+  font-size: 28px;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.modal-content {
+  background: #2d2d2d;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-title {
+  color: #ff6b35;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 20px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Modal Player Entries */
+.match-players-modal {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.modal-player-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.modal-player-entry:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 107, 53, 0.3);
+}
+
+.player-info-modal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.player-name-modal {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #fff;
+}
+
+.player-current-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.current-points {
+  color: #ff6b35;
+  font-weight: 600;
+}
+
+.current-wins {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.wins-input-modal {
+  width: 70px;
+  padding: 8px 12px;
+  border: 2px solid rgba(255, 107, 53, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.wins-input-modal:focus {
+  outline: none;
+  border-color: #ff6b35;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.3);
+}
+
+/* Modal Match Preview */
+.match-preview-modal {
+  background: rgba(40, 167, 69, 0.1);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-header h3 {
+  margin: 0;
+  color: #28a745;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.participants-count {
+  background: rgba(40, 167, 69, 0.2);
+  color: #28a745;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.preview-results {
+  display: grid;
+  gap: 10px;
+}
+
+.preview-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.preview-result:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.result-position-modal {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.result-position-modal.position-1 {
+  background: #ffd700;
+  color: #333;
+}
+
+.result-position-modal.position-2 {
+  background: #c0c0c0;
+  color: #333;
+}
+
+.result-position-modal.position-3 {
+  background: #cd7f32;
+  color: white;
+}
+
+.result-position-modal.position-4,
+.result-position-modal.position-5,
+.result-position-modal.position-6 {
+  background: #6c757d;
+  color: white;
+}
+
+.result-info-modal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.player-name-result {
+  font-weight: 600;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.wins-count-result {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.points-earned-modal {
+  color: #28a745;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
 /* View Mode Layout */
 .main-layout {
   display: flex;
@@ -3793,6 +4165,83 @@ onMounted(() => {
 
   .global-stat-label {
     font-size: 0.7rem;
+  }
+
+  /* Modal Mobile Styles */
+  .floating-add-btn {
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .floating-add-btn .material-icons {
+    font-size: 24px;
+  }
+
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .modal-content {
+    max-height: 95vh;
+    border-radius: 12px;
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+  }
+
+  .modal-title {
+    font-size: 1.3rem;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-footer {
+    padding: 16px 20px;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .modal-player-entry {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .player-info-modal {
+    align-items: center;
+  }
+
+  .wins-input-container {
+    justify-content: center;
+  }
+
+  .wins-input-modal {
+    width: 60px;
+    font-size: 0.9rem;
+  }
+
+  .match-preview-modal {
+    padding: 15px;
+  }
+
+  .preview-header {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .preview-results {
+    gap: 8px;
+  }
+
+  .preview-result {
+    padding: 10px;
   }
 
   /* Детальная статистика игроков - мобильные стили */
