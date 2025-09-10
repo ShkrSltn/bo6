@@ -730,9 +730,6 @@ const deleteMatch = async (matchId: number) => {
   }
 }
 
-const toggleMatchDetails = (matchId: number) => {
-  showMatchDetails.value[matchId] = !showMatchDetails.value[matchId]
-}
 
 const togglePlayerDetails = (playerId: number) => {
   showPlayerDetails.value[playerId] = !showPlayerDetails.value[playerId]
@@ -830,24 +827,49 @@ onMounted(() => {
       <div v-if="activeTab === 'view'" class="view-mode">
         <!-- Current Season Info -->
         <section class="section" v-if="currentSeason">
-          <h2 class="section-title">{{ currentSeason.name }}</h2>
           <div class="season-info-display">
-            <div class="season-stats">
-              <div class="stat-item">
-                <span class="stat-label">Игроков:</span>
-                <span class="stat-value">{{ currentSeason.players.length }}</span>
+            <div class="season-header-info">
+              <div class="season-title-info">
+                <h2 class="season-name-display">{{ currentSeason.name }}</h2>
+                <div class="season-status-info">
+                  <span v-if="!currentSeason.endDate" class="status-active">
+                    <span class="material-icons">play_circle</span>
+                    Активный
+                  </span>
+                  <span v-else class="status-completed">
+                    <span class="material-icons">check_circle</span>
+                    Завершен
+                  </span>
+                </div>
               </div>
-              <div class="stat-item">
-                <span class="stat-label">Дней:</span>
-                <span class="stat-value">{{ currentSeason.matches.length }}</span>
+              <div class="season-date-info">
+                <span class="material-icons">event</span>
+                <div class="date-range">
+                  <span class="start-date">{{ currentSeason.startDate }}</span>
+                  <span v-if="currentSeason.endDate" class="end-date">— {{ currentSeason.endDate }}</span>
+                </div>
               </div>
-              <div class="stat-item">
-                <span class="stat-label">Начат:</span>
-                <span class="stat-value">{{ currentSeason.startDate }}</span>
+            </div>
+
+            <div class="season-stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <span class="material-icons">group</span>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number">{{ currentSeason.players.length }}</div>
+                  <div class="stat-label">игроков</div>
+                </div>
               </div>
-              <div v-if="currentSeason.endDate" class="stat-item">
-                <span class="stat-label">Закончен:</span>
-                <span class="stat-value">{{ currentSeason.endDate }}</span>
+
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <span class="material-icons">calendar_today</span>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number">{{ currentSeason.matches.length }}</div>
+                  <div class="stat-label">дней</div>
+                </div>
               </div>
             </div>
           </div>
@@ -976,7 +998,7 @@ onMounted(() => {
                       <div class="stat-item">
                         <span class="material-icons">emoji_events</span>
                         <span class="stat-value">{{ getSeasonMatchWinsForPlayer(player.playerId, currentSeasonId || 0)
-                        }}</span>
+                          }}</span>
                         <span class="stat-label">матчей</span>
                       </div>
                       <div class="stat-item">
@@ -994,14 +1016,42 @@ onMounted(() => {
             <section class="section" v-if="currentSeason && matches.length > 0">
               <h2 class="section-title"><span class="material-icons">bar_chart</span> Последние матчи</h2>
               <div class="recent-matches">
-                <div v-for="match in matches.slice().reverse().slice(0, 5)" :key="match.id" class="match-card-simple">
-                  <div class="match-date">{{ match.date }}</div>
-                  <div class="match-results-simple">
-                    <div v-for="result in match.players" :key="result.playerId" class="match-result-simple">
-                      <span class="wins-simple">{{ result.winsInMatch }}</span>
-                      <span class="position-simple">{{ result.position }}</span>
-                      <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
-                      <span class="points">+{{ result.pointsEarned }}</span>
+                <div v-for="(match, index) in matches.slice().reverse().slice(0, 5)" :key="match.id"
+                  class="match-card-enhanced">
+                  <div class="match-header-enhanced">
+                    <div class="match-date-info">
+                      <span class="material-icons">event</span>
+                      <span class="match-date">{{ match.date }}</span>
+                      <span class="match-number">#{{ matches.length - index }}</span>
+                    </div>
+                    <div class="match-participants">
+                      <span class="material-icons">group</span>
+                      <span>{{ match.players.length }} игроков</span>
+                    </div>
+                  </div>
+
+                  <div class="match-summary">
+                    <!-- Winner highlight -->
+                    <div class="match-winner">
+                      <span class="material-icons">emoji_events</span>
+                      <span class="winner-text">Победитель:</span>
+                      <span class="winner-name">{{getPlayerName(match.players.find(p => p.position === 1)?.playerId ||
+                        0)
+                      }}</span>
+                      <span class="winner-score">{{match.players.find(p => p.position === 1)?.winsInMatch}}
+                        побед</span>
+                    </div>
+
+                    <!-- Quick results -->
+                    <div class="match-results-enhanced">
+                      <div v-for="result in match.players" :key="result.playerId" class="match-result-enhanced">
+                        <div class="result-position" :class="`position-${result.position}`">{{ result.position }}</div>
+                        <div class="result-player">
+                          <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
+                          <span class="player-performance">{{ result.winsInMatch }} побед</span>
+                        </div>
+                        <div class="result-points">+{{ result.pointsEarned }}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1009,8 +1059,62 @@ onMounted(() => {
             </section>
           </div>
 
-          <!-- Sidebar - Global Wins Ranking -->
+          <!-- Sidebar - Global Stats and Ranking -->
           <div class="sidebar">
+            <!-- Global Statistics -->
+            <div class="sidebar-section">
+              <h3 class="sidebar-title">
+                <span class="material-icons">analytics</span>
+                Общая статистика
+              </h3>
+              <div class="global-stats">
+                <div class="global-stat-item">
+                  <div class="global-stat-icon">
+                    <span class="material-icons">sports</span>
+                  </div>
+                  <div class="global-stat-content">
+                    <div class="global-stat-number">{{ seasons.length }}</div>
+                    <div class="global-stat-label">сезонов</div>
+                  </div>
+                </div>
+
+                <div class="global-stat-item">
+                  <div class="global-stat-icon">
+                    <span class="material-icons">calendar_today</span>
+                  </div>
+                  <div class="global-stat-content">
+                    <div class="global-stat-number">{{seasons.reduce((sum, season) => sum + season.matches.length, 0)
+                    }}</div>
+                    <div class="global-stat-label">матчей</div>
+                  </div>
+                </div>
+
+                <div class="global-stat-item">
+                  <div class="global-stat-icon">
+                    <span class="material-icons">stars</span>
+                  </div>
+                  <div class="global-stat-content">
+                    <div class="global-stat-number">{{seasons.reduce((sum, season) => sum +
+                      season.matches.reduce((matchSum, match) => matchSum + match.players.reduce((playerSum, player) =>
+                        playerSum + player.pointsEarned, 0), 0), 0)}}</div>
+                    <div class="global-stat-label">очков</div>
+                  </div>
+                </div>
+
+                <div class="global-stat-item">
+                  <div class="global-stat-icon">
+                    <span class="material-icons">trending_up</span>
+                  </div>
+                  <div class="global-stat-content">
+                    <div class="global-stat-number">{{seasons.reduce((sum, season) => sum +
+                      season.matches.reduce((matchSum, match) => matchSum + match.players.reduce((playerSum, player) =>
+                        playerSum + player.winsInMatch, 0), 0), 0)}}</div>
+                    <div class="global-stat-label">матчей</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="sidebar-section">
               <h3 class="sidebar-title">
                 <span class="material-icons">emoji_events</span>
@@ -1262,37 +1366,69 @@ onMounted(() => {
         <!-- Match History Section -->
         <section class="section" v-if="currentSeason && matches.length > 0">
           <h2 class="section-title">История матчей</h2>
-          <div class="match-history">
-            <div v-for="match in matches.slice().reverse()" :key="match.id" class="match-card">
-              <div class="match-header">
-                <div class="match-date">{{ match.date }}</div>
+          <div class="match-history-enhanced">
+            <div v-for="(match, index) in matches.slice().reverse()" :key="match.id" class="match-card-history">
+              <div class="match-header-history">
+                <div class="match-info-header">
+                  <div class="match-date-header">
+                    <span class="material-icons">event</span>
+                    <span class="match-date">{{ match.date }}</span>
+                    <span class="match-number">#{{ matches.length - index }}</span>
+                  </div>
+                  <div class="match-stats-preview">
+                    <div class="stat-preview">
+                      <span class="material-icons">group</span>
+                      <span>{{ match.players.length }} игроков</span>
+                    </div>
+                    <div class="stat-preview">
+                      <span class="material-icons">trending_up</span>
+                      <span>{{match.players.reduce((sum, p) => sum + p.winsInMatch, 0)}} побед</span>
+                    </div>
+                  </div>
+                </div>
                 <div class="match-controls">
-                  <button @click="toggleMatchDetails(match.id)" class="btn btn-secondary btn-small">
-                    <span class="material-icons">{{ showMatchDetails[match.id] ? 'expand_less' : 'expand_more' }}</span>
-                    Детали
-                  </button>
                   <button v-if="!editingMatch" @click="startEditingMatch(match)" class="btn btn-secondary btn-small">
-                    <span class="material-icons">edit</span> Редактировать
+                    <span class="material-icons">edit</span>
+                    Редактировать
                   </button>
                   <button v-if="!editingMatch" @click="deleteMatch(match.id)" class="btn btn-danger btn-small">
-                    <span class="material-icons">delete</span> Удалить
+                    <span class="material-icons">delete</span>
+                    Удалить
                   </button>
                 </div>
               </div>
 
-              <!-- Basic Match Results -->
-              <div v-if="!showMatchDetails[match.id]" class="match-results">
-                <div v-for="result in match.players" :key="result.playerId" class="match-result">
-                  <span class="wins">{{ result.winsInMatch }} побед</span>
-                  <span class="position">{{ result.position }} место</span>
-                  <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
-                  <span class="points">+{{ result.pointsEarned }}</span>
+              <!-- Enhanced Match Results Preview -->
+              <div v-if="editingMatch?.id !== match.id" class="match-results-preview">
+                <div class="winner-highlight">
+                  <div class="winner-info">
+                    <span class="material-icons">emoji_events</span>
+                    <span class="winner-label">Победитель:</span>
+                    <span class="winner-name">{{getPlayerName(match.players.find(p => p.position === 1)?.playerId || 0)
+                    }}</span>
+                    <span class="winner-performance">{{match.players.find(p => p.position === 1)?.winsInMatch}}
+                      побед</span>
+                  </div>
+                  <div class="winner-points">+{{match.players.find(p => p.position === 1)?.pointsEarned}} очков</div>
+                </div>
+
+                <div class="match-positions-grid">
+                  <div v-for="result in match.players" :key="result.playerId" class="position-result">
+                    <div class="position-badge-small" :class="`position-${result.position}`">{{ result.position }}</div>
+                    <div class="player-result-info">
+                      <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
+                      <div class="player-stats-inline">
+                        <span class="wins-count">{{ result.winsInMatch }} побед</span>
+                        <span class="points-earned">+{{ result.pointsEarned }}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <!-- Detailed Match View -->
-              <div v-if="showMatchDetails[match.id]" class="match-details">
-                <div v-if="editingMatch?.id === match.id" class="match-edit">
+              <div v-if="editingMatch?.id === match.id" class="match-details">
+                <div class="match-edit">
                   <h4>Редактирование матча</h4>
                   <div class="edit-match-players">
                     <div v-for="player in players" :key="player.id" class="edit-match-player">
@@ -1334,16 +1470,6 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div v-else class="match-full-results">
-                  <div v-for="result in match.players" :key="result.playerId" class="match-result-detailed">
-                    <div class="result-info">
-                      <span class="wins-badge">{{ result.winsInMatch }}</span>
-                      <span class="position-badge position-{{ result.position }}">{{ result.position }}</span>
-                      <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
-                      <span class="points-earned">+{{ result.pointsEarned }} очков</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -1397,7 +1523,7 @@ onMounted(() => {
                 <div v-else class="global-player-info">
                   <div class="global-player-details">
                     <span class="global-player-name" @dblclick="startEditingGlobalPlayer(player)">{{ player.name
-                      }}</span>
+                    }}</span>
                     <div class="global-player-meta">
                       <span class="seasons-count">
                         <span class="material-icons">calendar_today</span>
@@ -1420,7 +1546,7 @@ onMounted(() => {
                   <div class="global-player-controls">
                     <button @click="togglePlayerDetails(player.id)" class="btn btn-secondary btn-small">
                       <span class="material-icons">{{ showPlayerDetails[player.id] ? 'expand_less' : 'expand_more'
-                        }}</span>
+                      }}</span>
                       Детали
                     </button>
                     <button @click="startEditingGlobalPlayer(player)" class="btn btn-secondary btn-small">
@@ -1980,6 +2106,205 @@ onMounted(() => {
   margin-top: 5px;
 }
 
+/* Enhanced Match History */
+.match-history-enhanced {
+  display: grid;
+  gap: 20px;
+}
+
+.match-card-history {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+
+.match-header-history {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.match-info-header {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.match-date-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ff6b35;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.match-date-header .material-icons {
+  font-size: 20px;
+}
+
+.match-stats-preview {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stat-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+}
+
+.stat-preview .material-icons {
+  font-size: 16px;
+  color: #ff6b35;
+}
+
+.match-results-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.winner-highlight {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.winner-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.winner-info .material-icons {
+  color: #ffd700;
+  font-size: 24px;
+}
+
+.winner-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.winner-name {
+  color: #ffd700;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.winner-performance {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.winner-points {
+  color: #28a745;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.match-positions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.position-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.position-result:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.position-badge-small {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.position-badge-small.position-1 {
+  background: #ffd700;
+  color: #333;
+}
+
+.position-badge-small.position-2 {
+  background: #c0c0c0;
+  color: #333;
+}
+
+.position-badge-small.position-3 {
+  background: #cd7f32;
+  color: white;
+}
+
+.position-badge-small.position-4,
+.position-badge-small.position-5,
+.position-badge-small.position-6 {
+  background: #6c757d;
+  color: white;
+}
+
+.player-result-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.player-result-info .player-name {
+  font-weight: 600;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.player-stats-inline {
+  display: flex;
+  gap: 12px;
+}
+
+.wins-count {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.points-earned {
+  font-size: 0.8rem;
+  color: #28a745;
+  font-weight: 600;
+}
+
+/* Keep original styles for compatibility */
 .match-history {
   display: grid;
   gap: 15px;
@@ -2132,85 +2457,335 @@ onMounted(() => {
 }
 
 .season-info-display {
-  background: rgba(255, 107, 53, 0.1);
+  background: rgba(255, 107, 53, 0.08);
   border: 1px solid rgba(255, 107, 53, 0.3);
-  border-radius: 12px;
-  padding: 25px;
-  margin-bottom: 20px;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
 }
 
-.season-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-.stat-item {
+.season-header-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.stat-item:last-child {
-  border-bottom: none;
+.season-title-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.season-name-display {
+  color: #ff6b35;
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.season-status-info {
+  display: flex;
+  align-items: center;
+}
+
+.status-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(40, 167, 69, 0.15);
+  color: #28a745;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.status-completed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(108, 117, 125, 0.15);
+  color: #6c757d;
+  border: 1px solid rgba(108, 117, 125, 0.3);
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.status-active .material-icons,
+.status-completed .material-icons {
+  font-size: 16px;
+}
+
+.season-date-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.season-date-info .material-icons {
+  color: #ff6b35;
+  font-size: 20px;
+}
+
+.date-range {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.start-date {
+  color: #fff;
+  font-weight: 600;
+}
+
+.end-date {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.season-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 107, 53, 0.4);
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.1);
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 107, 53, 0.2);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.stat-icon .material-icons {
+  color: #ff6b35;
+  font-size: 20px;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-number {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 4px;
 }
 
 .stat-label {
-  font-weight: 600;
+  font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
 }
 
-.stat-value {
-  font-weight: bold;
-  color: #ff6b35;
-  font-size: 1.1em;
-}
-
+/* Enhanced Recent Matches */
 .recent-matches {
   display: grid;
-  gap: 15px;
+  gap: 20px;
 }
 
-.match-card-simple {
+.match-card-enhanced {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 107, 53, 0.2);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 20px;
   transition: all 0.3s ease;
 }
 
-.match-card-simple:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 107, 53, 0.4);
-  transform: translateY(-2px);
+.match-header-enhanced {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.match-results-simple {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.match-result-simple {
+.match-date-info {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 8px 0;
+  gap: 8px;
+  color: #ff6b35;
+  font-weight: 600;
 }
 
-.position-simple {
-  background: linear-gradient(45deg, #ff6b35, #f7931e);
-  color: white;
+.match-date-info .material-icons {
+  font-size: 18px;
+}
+
+.match-number {
+  background: rgba(255, 107, 53, 0.2);
+  color: #ff6b35;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.match-participants {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+}
+
+.match-participants .material-icons {
+  font-size: 16px;
+}
+
+.match-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.match-winner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.match-winner .material-icons {
+  color: #ffd700;
+  font-size: 20px;
+}
+
+.winner-text {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+}
+
+.winner-name {
+  color: #ffd700;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.winner-score {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.match-results-enhanced {
+  display: grid;
+  gap: 8px;
+}
+
+.match-result-enhanced {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.match-result-enhanced:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.result-position {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 14px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.result-position.position-1 {
+  background: #ffd700;
+  color: #333;
+}
+
+.result-position.position-2 {
+  background: #c0c0c0;
+  color: #333;
+}
+
+.result-position.position-3 {
+  background: #cd7f32;
+  color: white;
+}
+
+.result-position.position-4,
+.result-position.position-5,
+.result-position.position-6 {
+  background: #6c757d;
+  color: white;
+}
+
+.result-player {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-player .player-name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.player-performance {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.result-points {
+  color: #28a745;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.more-players {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  font-style: italic;
+  padding: 8px;
 }
 
 /* View Mode Layout */
@@ -2328,6 +2903,66 @@ onMounted(() => {
 .wins-count .material-icons {
   font-size: 14px;
   color: #ff6b35;
+}
+
+/* Global Statistics */
+.global-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.global-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.global-stat-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 107, 53, 0.4);
+  box-shadow: 0 2px 10px rgba(255, 107, 53, 0.1);
+}
+
+.global-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 107, 53, 0.2);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.global-stat-icon .material-icons {
+  color: #ff6b35;
+  font-size: 18px;
+}
+
+.global-stat-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.global-stat-number {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.global-stat-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  line-height: 1;
 }
 
 /* Global Ranking Enhancements */
@@ -2887,23 +3522,95 @@ onMounted(() => {
     justify-content: center;
   }
 
-  /* Recent Matches Mobile */
-  .match-card-simple {
-    padding: 12px;
+  /* Enhanced Recent Matches Mobile */
+  .match-card-enhanced {
+    padding: 15px;
   }
 
-  .match-results-simple {
+  .match-header-enhanced {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .match-date-info {
+    justify-content: center;
+  }
+
+  .match-participants {
+    justify-content: center;
+  }
+
+  .match-winner {
+    flex-wrap: wrap;
     gap: 8px;
+    justify-content: center;
+    text-align: center;
   }
 
-  .match-result-simple {
-    padding: 8px;
+  .winner-score {
+    margin-left: 0;
+  }
+
+  .match-results-enhanced {
+    gap: 10px;
+  }
+
+  .match-result-enhanced {
+    padding: 10px;
+  }
+
+  .result-player {
+    gap: 4px;
+  }
+
+  /* Enhanced Match History Mobile */
+  .match-card-history {
+    padding: 15px;
+  }
+
+  .match-header-history {
+    flex-direction: column;
+    gap: 15px;
+    align-items: stretch;
+  }
+
+  .match-info-header {
+    text-align: center;
+  }
+
+  .match-stats-preview {
+    justify-content: center;
+    gap: 15px;
+  }
+
+  .match-controls {
+    justify-content: center;
     flex-wrap: wrap;
   }
 
-  .position-simple {
-    min-width: 20px;
-    font-size: 0.8rem;
+  .winner-highlight {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .winner-info {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .match-positions-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .position-result {
+    padding: 10px;
+  }
+
+  .player-stats-inline {
+    gap: 8px;
   }
 
   /* Container and Section Mobile */
@@ -2924,13 +3631,58 @@ onMounted(() => {
   }
 
   /* Season Info Mobile */
-  .season-stats {
-    flex-wrap: wrap;
+  .season-info-display {
+    padding: 20px;
+  }
+
+  .season-header-info {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .season-title-info {
+    align-items: center;
+  }
+
+  .season-name-display {
+    font-size: 1.5rem;
+  }
+
+  .season-date-info {
+    justify-content: center;
+  }
+
+  .date-range {
+    text-align: center;
+  }
+
+  .season-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 12px;
     gap: 10px;
   }
 
-  .stat-item {
-    min-width: calc(50% - 5px);
+  .stat-icon {
+    width: 35px;
+    height: 35px;
+  }
+
+  .stat-icon .material-icons {
+    font-size: 18px;
+  }
+
+  .stat-number {
+    font-size: 1.4rem;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
   }
 
   /* Global Ranking Mobile */
@@ -2996,6 +3748,34 @@ onMounted(() => {
   .subtitle {
     font-size: 0.8rem;
     margin-bottom: 12px;
+  }
+
+  /* Global Statistics Mobile */
+  .global-stats {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .global-stat-item {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .global-stat-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .global-stat-icon .material-icons {
+    font-size: 16px;
+  }
+
+  .global-stat-number {
+    font-size: 1.2rem;
+  }
+
+  .global-stat-label {
+    font-size: 0.7rem;
   }
 
   /* Детальная статистика игроков - мобильные стили */
