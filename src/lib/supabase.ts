@@ -52,6 +52,7 @@ export interface DatabaseMatchPlayer {
   id: number;
   match_id: number;
   player_id: number;
+  wins_in_match: number; // Количество побед игрока в этом матче
   position: number;
   points_earned: number;
   created_at: string;
@@ -85,6 +86,7 @@ export interface Match {
 
 export interface MatchPlayer {
   playerId: number;
+  winsInMatch: number; // Количество побед игрока в этом матче
   position: number;
   pointsEarned: number;
 }

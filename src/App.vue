@@ -9,7 +9,7 @@ const globalPlayers = ref<DatabasePlayer[]>([])
 const currentSeasonId = ref<number | null>(null)
 const newPlayerName = ref('')
 const newSeasonName = ref('')
-const currentMatch = ref<{ playerId: number; position: number }[]>([])
+const currentMatch = ref<{ playerId: number; winsInMatch: number }[]>([])
 const isLoading = ref(false)
 const selectedPlayersForSeason = ref<number[]>([])
 
@@ -20,8 +20,9 @@ const activeTab = ref<'view' | 'season' | 'players'>('view')
 const editingPlayer = ref<{ id: number; name: string } | null>(null)
 const editingGlobalPlayer = ref<{ id: number; name: string } | null>(null)
 const editingSeason = ref<{ id: number; name: string } | null>(null)
-const editingMatch = ref<{ id: number; players: { playerId: number; position: number }[] } | null>(null)
+const editingMatch = ref<{ id: number; players: { playerId: number; winsInMatch: number }[] } | null>(null)
 const showMatchDetails = ref<{ [key: number]: boolean }>({})
+const showPlayerDetails = ref<{ [key: number]: boolean }>({})
 
 // Computed current season
 const currentSeason = computed(() => {
@@ -32,8 +33,36 @@ const currentSeason = computed(() => {
 const players = computed(() => currentSeason.value?.players || [])
 const matches = computed(() => currentSeason.value?.matches || [])
 
+// Функция для расчета позиций на основе количества побед
+const calculatePositionsFromWins = (players: { playerId: number; winsInMatch: number }[]) => {
+  // Сортируем игроков по количеству побед (по убыванию)
+  const sorted = [...players].sort((a, b) => b.winsInMatch - a.winsInMatch)
+
+  let currentPosition = 1
+  const result: { playerId: number; winsInMatch: number; position: number }[] = []
+
+  for (let i = 0; i < sorted.length; i++) {
+    const player = sorted[i]
+
+    // Если это не первый игрок и у него такое же количество побед, как у предыдущего
+    if (i > 0 && sorted[i - 1].winsInMatch === player.winsInMatch) {
+      // Оставляем ту же позицию
+    } else {
+      // Обновляем позицию
+      currentPosition = i + 1
+    }
+
+    result.push({
+      ...player,
+      position: currentPosition,
+    })
+  }
+
+  return result
+}
+
 // Points system with shared positions
-const calculatePoints = (position: number, matchPlayers: { playerId: number; position: number }[]): number => {
+const calculatePoints = (position: number, matchPlayers: { playerId: number; winsInMatch: number; position: number }[]): number => {
   // Count how many players share the same position
   const playersAtPosition = matchPlayers.filter(p => p.position === position).length
 
@@ -210,6 +239,109 @@ const getTotalWinsForPlayer = (playerId: number) => {
   }, 0)
 }
 
+// Получить общее количество побед в матчах для игрока (сумма всех wins_in_match)
+const getTotalMatchWinsForPlayer = (playerId: number) => {
+  return seasons.value.reduce((total, season) => {
+    return total + season.matches.reduce((matchTotal, match) => {
+      const playerInMatch = match.players.find(p => p.playerId === playerId)
+      return matchTotal + (playerInMatch?.winsInMatch || 0)
+    }, 0)
+  }, 0)
+}
+
+// Получить количество побед в матчах для игрока в конкретном сезоне
+const getSeasonMatchWinsForPlayer = (playerId: number, seasonId: number) => {
+  const season = seasons.value.find(s => s.id === seasonId)
+  if (!season) return 0
+
+  return season.matches.reduce((total, match) => {
+    const playerInMatch = match.players.find(p => p.playerId === playerId)
+    return total + (playerInMatch?.winsInMatch || 0)
+  }, 0)
+}
+
+// Получить детальную статистику игрока
+const getDetailedPlayerStats = (playerId: number) => {
+  const stats = {
+    totalMatches: 0,
+    totalVictories: 0, // Общее количество побед в играх (wins_in_match)
+    totalPoints: 0,
+    seasonWins: 0,
+    positionStats: {
+      1: 0, // Количество 1-х мест
+      2: 0, // Количество 2-х мест  
+      3: 0, // Количество 3-х мест
+      4: 0, // Количество 4-х мест
+      5: 0, // Количество 5-х мест
+      6: 0  // Количество 6-х мест
+    },
+    seasonsParticipated: 0,
+    averagePosition: 0,
+    averagePoints: 0,
+    averageVictoriesPerMatch: 0,
+    bestPosition: null as number | null,
+    worstPosition: null as number | null
+  }
+
+  let totalPositionSum = 0
+  let matchCount = 0
+
+  seasons.value.forEach(season => {
+    const playerInSeason = season.players.find(p => p.playerId === playerId)
+    if (playerInSeason) {
+      stats.seasonsParticipated++
+      stats.totalPoints += playerInSeason.points
+
+      // Проверяем, выиграл ли игрок этот сезон
+      if (season.players.length > 0) {
+        const maxPoints = Math.max(...season.players.map(p => p.points))
+        const seasonWinners = season.players.filter(p => p.points === maxPoints)
+        if (seasonWinners.some(w => w.playerId === playerId)) {
+          stats.seasonWins++
+        }
+      }
+
+      // Анализируем матчи этого сезона
+      season.matches.forEach(match => {
+        const playerInMatch = match.players.find(p => p.playerId === playerId)
+        if (playerInMatch) {
+          stats.totalMatches++
+          matchCount++
+          stats.totalVictories += playerInMatch.winsInMatch || 0
+
+          const position = playerInMatch.position
+          if (position >= 1 && position <= 6) {
+            stats.positionStats[position as keyof typeof stats.positionStats]++
+            totalPositionSum += position
+
+            // Лучшая и худшая позиции
+            if (stats.bestPosition === null || position < stats.bestPosition) {
+              stats.bestPosition = position
+            }
+            if (stats.worstPosition === null || position > stats.worstPosition) {
+              stats.worstPosition = position
+            }
+          }
+
+          // Подсчет побед в матчах (1-е места)
+          if (position === 1) {
+            // Уже считается в positionStats[1]
+          }
+        }
+      })
+    }
+  })
+
+  // Вычисляем средние значения
+  if (matchCount > 0) {
+    stats.averagePosition = Math.round((totalPositionSum / matchCount) * 100) / 100
+    stats.averagePoints = Math.round((stats.totalPoints / matchCount) * 100) / 100
+    stats.averageVictoriesPerMatch = Math.round((stats.totalVictories / matchCount) * 100) / 100
+  }
+
+  return stats
+}
+
 const getSeasonWinsForPlayer = (playerId: number) => {
   return seasons.value.reduce((total, season) => {
     if (season.players.length === 0) return total
@@ -274,14 +406,14 @@ const removePlayerFromSeason = async (playerId: number) => {
   }
 }
 
-// Add player to current match
-const addToCurrentMatch = (playerId: number, position: number) => {
+// Add player to current match with wins count
+const addToCurrentMatch = (playerId: number, winsInMatch: number) => {
   // Remove if already in match
   currentMatch.value = currentMatch.value.filter(m => m.playerId !== playerId)
-  // Add with new position
-  currentMatch.value.push({ playerId, position })
-  // Sort by position
-  currentMatch.value.sort((a, b) => a.position - b.position)
+  // Add with new wins count
+  currentMatch.value.push({ playerId, winsInMatch })
+  // Sort by wins count (descending)
+  currentMatch.value.sort((a, b) => b.winsInMatch - a.winsInMatch)
 }
 
 // Remove player from current match
@@ -295,11 +427,13 @@ const saveMatch = async () => {
 
   isLoading.value = true
   try {
-    // Add pointsEarned to match players
-    const matchPlayersWithPoints = currentMatch.value.map(mp => ({
+    // Calculate positions based on wins and add pointsEarned
+    const playersWithPositions = calculatePositionsFromWins(currentMatch.value)
+    const matchPlayersWithPoints = playersWithPositions.map(mp => ({
       playerId: mp.playerId,
+      winsInMatch: mp.winsInMatch,
       position: mp.position,
-      pointsEarned: calculatePoints(mp.position, currentMatch.value)
+      pointsEarned: calculatePoints(mp.position, playersWithPositions)
     }))
 
     const savedMatch = await scoreboardService.saveMatch(currentSeason.value.id, matchPlayersWithPoints)
@@ -376,6 +510,7 @@ const globalWinsRanking = computed(() => {
   const playerStatsMap = new Map<number, {
     name: string;
     totalMatchWins: number;
+    totalMatchVictories: number; // Общее количество побед в матчах (wins_in_match)
     seasonWins: number;
     seasonsParticipated: number;
   }>()
@@ -395,14 +530,22 @@ const globalWinsRanking = computed(() => {
       const existing = playerStatsMap.get(player.playerId)
       const isSeasonWinner = seasonWinners.includes(player.playerId)
 
+      // Подсчитываем общее количество побед в матчах для этого игрока в этом сезоне
+      const matchVictories = season.matches.reduce((total, match) => {
+        const playerInMatch = match.players.find(p => p.playerId === player.playerId)
+        return total + (playerInMatch?.winsInMatch || 0)
+      }, 0)
+
       if (existing) {
         existing.totalMatchWins += player.wins
+        existing.totalMatchVictories += matchVictories
         if (isSeasonWinner) existing.seasonWins += 1
         existing.seasonsParticipated += 1
       } else {
         playerStatsMap.set(player.playerId, {
           name: player.name,
           totalMatchWins: player.wins,
+          totalMatchVictories: matchVictories,
           seasonWins: isSeasonWinner ? 1 : 0,
           seasonsParticipated: 1
         })
@@ -416,6 +559,7 @@ const globalWinsRanking = computed(() => {
       playerId,
       name: data.name,
       totalMatchWins: data.totalMatchWins,
+      totalMatchVictories: data.totalMatchVictories,
       seasonWins: data.seasonWins,
       seasonsParticipated: data.seasonsParticipated
     }))
@@ -424,6 +568,8 @@ const globalWinsRanking = computed(() => {
       if (b.seasonWins !== a.seasonWins) return b.seasonWins - a.seasonWins
       // Then by total match wins (descending)
       if (b.totalMatchWins !== a.totalMatchWins) return b.totalMatchWins - a.totalMatchWins
+      // Then by total match victories (descending)
+      if (b.totalMatchVictories !== a.totalMatchVictories) return b.totalMatchVictories - a.totalMatchVictories
       // Then by name (ascending)
       return a.name.localeCompare(b.name)
     })
@@ -439,10 +585,10 @@ const isPlayerInMatch = (playerId: number): boolean => {
   return currentMatch.value.some(m => m.playerId === playerId)
 }
 
-// Get player position in current match
-const getPlayerPosition = (playerId: number): number | null => {
+// Get player wins in current match
+const getPlayerWinsInMatch = (playerId: number): number | null => {
   const match = currentMatch.value.find(m => m.playerId === playerId)
-  return match ? match.position : null
+  return match ? match.winsInMatch : null
 }
 
 // Load data from Supabase
@@ -527,7 +673,13 @@ const saveSeasonEdit = async () => {
 }
 
 const startEditingMatch = (match: Match) => {
-  editingMatch.value = { id: match.id, players: [...match.players] }
+  editingMatch.value = {
+    id: match.id,
+    players: match.players.map(p => ({
+      playerId: p.playerId,
+      winsInMatch: p.winsInMatch
+    }))
+  }
 }
 
 const cancelEditingMatch = () => {
@@ -539,11 +691,13 @@ const saveMatchEdit = async () => {
 
   isLoading.value = true
   try {
-    // Add pointsEarned to match players
-    const matchPlayersWithPoints = editingMatch.value.players.map(mp => ({
+    // Calculate positions based on wins and add pointsEarned
+    const playersWithPositions = calculatePositionsFromWins(editingMatch.value.players)
+    const matchPlayersWithPoints = playersWithPositions.map(mp => ({
       playerId: mp.playerId,
+      winsInMatch: mp.winsInMatch,
       position: mp.position,
-      pointsEarned: calculatePoints(mp.position, editingMatch.value!.players)
+      pointsEarned: calculatePoints(mp.position, playersWithPositions)
     }))
 
     const success = await scoreboardService.updateMatch(editingMatch.value.id, matchPlayersWithPoints)
@@ -580,15 +734,25 @@ const toggleMatchDetails = (matchId: number) => {
   showMatchDetails.value[matchId] = !showMatchDetails.value[matchId]
 }
 
-const updateEditingMatchPlayer = (playerId: number, position: number) => {
+const togglePlayerDetails = (playerId: number) => {
+  showPlayerDetails.value[playerId] = !showPlayerDetails.value[playerId]
+}
+
+// Вспомогательная функция для получения количества мест
+const getPositionCount = (playerId: number, position: number) => {
+  const stats = getDetailedPlayerStats(playerId)
+  return stats.positionStats[position as keyof typeof stats.positionStats] || 0
+}
+
+const updateEditingMatchPlayer = (playerId: number, winsInMatch: number) => {
   if (!editingMatch.value) return
 
   // Remove if already in match
   editingMatch.value.players = editingMatch.value.players.filter(m => m.playerId !== playerId)
-  // Add with new position
-  editingMatch.value.players.push({ playerId, position })
-  // Sort by position
-  editingMatch.value.players.sort((a, b) => a.position - b.position)
+  // Add with new wins count
+  editingMatch.value.players.push({ playerId, winsInMatch })
+  // Sort by wins count (descending)
+  editingMatch.value.players.sort((a, b) => b.winsInMatch - a.winsInMatch)
 }
 
 const removeEditingMatchPlayer = (playerId: number) => {
@@ -674,7 +838,7 @@ onMounted(() => {
                 <span class="stat-value">{{ currentSeason.players.length }}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">Матчей:</span>
+                <span class="stat-label">Дней:</span>
                 <span class="stat-value">{{ currentSeason.matches.length }}</span>
               </div>
               <div class="stat-item">
@@ -721,6 +885,8 @@ onMounted(() => {
                         <div class="podium-stats">
                           <div class="stat">{{ leaderboard[1].points }} очков</div>
                           <div class="stat">{{ leaderboard[1].wins }} побед</div>
+                          <div class="stat">{{ getSeasonMatchWinsForPlayer(leaderboard[1].playerId, currentSeasonId ||
+                            0) }} матчей</div>
                         </div>
                       </div>
                       <div class="podium-base" :class="`podium-base-${leaderboard[1].rank}`"></div>
@@ -741,6 +907,9 @@ onMounted(() => {
                         <div class="podium-stats">
                           <div class="stat">{{ leaderboard[0].points }} очков</div>
                           <div class="stat">{{ leaderboard[0].wins }} побед</div>
+                          <div class="stat">{{ getSeasonMatchWinsForPlayer(leaderboard[0].playerId, currentSeasonId ||
+                            0) }}
+                            матчей</div>
                         </div>
                       </div>
                       <div class="podium-base" :class="`podium-base-${leaderboard[0].rank}`"></div>
@@ -761,6 +930,9 @@ onMounted(() => {
                         <div class="podium-stats">
                           <div class="stat">{{ leaderboard[2].points }} очков</div>
                           <div class="stat">{{ leaderboard[2].wins }} побед</div>
+                          <div class="stat">{{ getSeasonMatchWinsForPlayer(leaderboard[2].playerId, currentSeasonId ||
+                            0) }}
+                            матчей</div>
                         </div>
                       </div>
                       <div class="podium-base" :class="`podium-base-${leaderboard[2].rank}`"></div>
@@ -799,10 +971,18 @@ onMounted(() => {
                       <div class="stat-item">
                         <span class="material-icons">military_tech</span>
                         <span class="stat-value">{{ player.wins }}</span>
+                        <span class="stat-label">побед</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="material-icons">emoji_events</span>
+                        <span class="stat-value">{{ getSeasonMatchWinsForPlayer(player.playerId, currentSeasonId || 0)
+                        }}</span>
+                        <span class="stat-label">матчей</span>
                       </div>
                       <div class="stat-item">
                         <span class="material-icons">stars</span>
                         <span class="stat-value">{{ player.points }}</span>
+                        <span class="stat-label">очков</span>
                       </div>
                     </div>
                   </div>
@@ -818,9 +998,10 @@ onMounted(() => {
                   <div class="match-date">{{ match.date }}</div>
                   <div class="match-results-simple">
                     <div v-for="result in match.players" :key="result.playerId" class="match-result-simple">
+                      <span class="wins-simple">{{ result.winsInMatch }}</span>
                       <span class="position-simple">{{ result.position }}</span>
                       <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
-                      <span class="points">+{{ calculatePoints(result.position, match.players) }}</span>
+                      <span class="points">+{{ result.pointsEarned }}</span>
                     </div>
                   </div>
                 </div>
@@ -835,8 +1016,6 @@ onMounted(() => {
                 <span class="material-icons">emoji_events</span>
                 Глобальный рейтинг
               </h3>
-              <div class="subtitle">Выигранные сезоны и общие победы в матчах<br><small>При равных очках в сезоне все
-                  лидеры считаются победителями</small></div>
               <div class="wins-ranking">
                 <div v-for="(player, index) in globalWinsRanking" :key="player.playerId" class="wins-ranking-item">
                   <div class="wins-rank" :class="{
@@ -852,6 +1031,10 @@ onMounted(() => {
                       <div class="wins-count">
                         <span class="material-icons">military_tech</span>
                         {{ player.totalMatchWins }} побед
+                      </div>
+                      <div class="wins-count">
+                        <span class="material-icons">trending_up</span>
+                        {{ player.totalMatchVictories }} матчей
                       </div>
                     </div>
                   </div>
@@ -1026,17 +1209,10 @@ onMounted(() => {
               <div v-for="player in players" :key="player.id" class="match-player">
                 <span class="player-name">{{ player.name }}</span>
                 <div class="position-controls">
-                  <select
-                    @change="addToCurrentMatch(player.playerId, parseInt(($event.target as HTMLSelectElement).value))"
-                    :value="getPlayerPosition(player.playerId) || ''" class="position-select">
-                    <option value="">Выберите место</option>
-                    <option value="1">1 место (3 очка, при делении 2.5)</option>
-                    <option value="2">2 место (1 очко, при делении 1.5)</option>
-                    <option value="3">3 место (0 очков)</option>
-                    <option value="4">4 место (0 очков)</option>
-                    <option value="5">5 место (0 очков)</option>
-                    <option value="6">6 место (0 очков)</option>
-                  </select>
+                  <input type="number" min="0" max="100" placeholder="Количество побед"
+                    :value="getPlayerWinsInMatch(player.playerId) || ''"
+                    @input="addToCurrentMatch(player.playerId, parseInt(($event.target as HTMLInputElement).value) || 0)"
+                    class="wins-input" />
                   <button v-if="isPlayerInMatch(player.playerId)" @click="removeFromCurrentMatch(player.playerId)"
                     class="btn btn-danger btn-small">
                     <span class="material-icons">remove</span> Убрать
@@ -1047,10 +1223,12 @@ onMounted(() => {
 
             <div v-if="currentMatch.length > 0" class="current-match-preview">
               <h3>Результаты матча:</h3>
-              <div v-for="match in currentMatch" :key="match.playerId" class="match-result">
+              <div v-for="match in calculatePositionsFromWins(currentMatch)" :key="match.playerId" class="match-result">
+                <span class="wins">{{ match.winsInMatch }} побед</span>
                 <span class="position">{{ match.position }} место</span>
                 <span class="player-name">{{ getPlayerName(match.playerId) }}</span>
-                <span class="points">+{{ calculatePoints(match.position, currentMatch) }} очков</span>
+                <span class="points">+{{ calculatePoints(match.position, calculatePositionsFromWins(currentMatch)) }}
+                  очков</span>
               </div>
               <button @click="saveMatch" class="btn btn-success" :disabled="isLoading">
                 <span class="material-icons">save</span>
@@ -1105,9 +1283,10 @@ onMounted(() => {
               <!-- Basic Match Results -->
               <div v-if="!showMatchDetails[match.id]" class="match-results">
                 <div v-for="result in match.players" :key="result.playerId" class="match-result">
+                  <span class="wins">{{ result.winsInMatch }} побед</span>
                   <span class="position">{{ result.position }} место</span>
                   <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
-                  <span class="points">+{{ calculatePoints(result.position, match.players) }}</span>
+                  <span class="points">+{{ result.pointsEarned }}</span>
                 </div>
               </div>
 
@@ -1119,18 +1298,10 @@ onMounted(() => {
                     <div v-for="player in players" :key="player.id" class="edit-match-player">
                       <span class="player-name">{{ player.name }}</span>
                       <div class="position-controls">
-                        <select
-                          @change="updateEditingMatchPlayer(player.playerId, parseInt(($event.target as HTMLSelectElement).value))"
-                          :value="editingMatch.players.find(p => p.playerId === player.playerId)?.position || ''"
-                          class="position-select">
-                          <option value="">Не участвует</option>
-                          <option value="1">1 место</option>
-                          <option value="2">2 место</option>
-                          <option value="3">3 место</option>
-                          <option value="4">4 место</option>
-                          <option value="5">5 место</option>
-                          <option value="6">6 место</option>
-                        </select>
+                        <input type="number" min="0" max="100" placeholder="Количество побед"
+                          :value="editingMatch.players.find(p => p.playerId === player.playerId)?.winsInMatch || ''"
+                          @input="updateEditingMatchPlayer(player.playerId, parseInt(($event.target as HTMLInputElement).value) || 0)"
+                          class="wins-input" />
                         <button v-if="editingMatch.players.some(p => p.playerId === player.playerId)"
                           @click="removeEditingMatchPlayer(player.playerId)" class="btn btn-danger btn-small">
                           <span class="material-icons">remove</span> Убрать
@@ -1141,10 +1312,13 @@ onMounted(() => {
 
                   <div v-if="editingMatch.players.length > 0" class="edit-match-preview">
                     <h5>Предварительный результат:</h5>
-                    <div v-for="mp in editingMatch.players" :key="mp.playerId" class="match-result">
+                    <div v-for="mp in calculatePositionsFromWins(editingMatch.players)" :key="mp.playerId"
+                      class="match-result">
+                      <span class="wins">{{ mp.winsInMatch }} побед</span>
                       <span class="position">{{ mp.position }} место</span>
                       <span class="player-name">{{ getPlayerName(mp.playerId) }}</span>
-                      <span class="points">+{{ calculatePoints(mp.position, editingMatch.players) }} очков</span>
+                      <span class="points">+{{ calculatePoints(mp.position,
+                        calculatePositionsFromWins(editingMatch.players)) }} очков</span>
                     </div>
                   </div>
 
@@ -1163,9 +1337,10 @@ onMounted(() => {
                 <div v-else class="match-full-results">
                   <div v-for="result in match.players" :key="result.playerId" class="match-result-detailed">
                     <div class="result-info">
+                      <span class="wins-badge">{{ result.winsInMatch }}</span>
                       <span class="position-badge position-{{ result.position }}">{{ result.position }}</span>
                       <span class="player-name">{{ getPlayerName(result.playerId) }}</span>
-                      <span class="points-earned">+{{ calculatePoints(result.position, match.players) }} очков</span>
+                      <span class="points-earned">+{{ result.pointsEarned }} очков</span>
                     </div>
                   </div>
                 </div>
@@ -1222,7 +1397,7 @@ onMounted(() => {
                 <div v-else class="global-player-info">
                   <div class="global-player-details">
                     <span class="global-player-name" @dblclick="startEditingGlobalPlayer(player)">{{ player.name
-                    }}</span>
+                      }}</span>
                     <div class="global-player-meta">
                       <span class="seasons-count">
                         <span class="material-icons">calendar_today</span>
@@ -1236,15 +1411,103 @@ onMounted(() => {
                         <span class="material-icons">military_tech</span>
                         {{ getTotalWinsForPlayer(player.id) }} побед
                       </span>
+                      <span class="match-victories">
+                        <span class="material-icons">trending_up</span>
+                        {{ getTotalMatchWinsForPlayer(player.id) }} матчей
+                      </span>
                     </div>
                   </div>
                   <div class="global-player-controls">
+                    <button @click="togglePlayerDetails(player.id)" class="btn btn-secondary btn-small">
+                      <span class="material-icons">{{ showPlayerDetails[player.id] ? 'expand_less' : 'expand_more'
+                        }}</span>
+                      Детали
+                    </button>
                     <button @click="startEditingGlobalPlayer(player)" class="btn btn-secondary btn-small">
                       <span class="material-icons">edit</span>
                     </button>
                     <button @click="deleteGlobalPlayerConfirm(player.id)" class="btn btn-danger btn-small">
                       <span class="material-icons">delete</span>
                     </button>
+                  </div>
+                </div>
+
+                <!-- Детальная статистика игрока -->
+                <div v-if="showPlayerDetails[player.id]" class="player-detailed-stats">
+                  <h4>Детальная статистика: {{ player.name }}</h4>
+
+                  <div class="stats-overview">
+                    <div class="stats-row">
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).totalMatches }}</div>
+                        <div class="stat-label">Всего участий (дней) </div>
+                      </div>
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).totalVictories }}</div>
+                        <div class="stat-label">Всего побед в играх</div>
+                      </div>
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).totalPoints }}</div>
+                        <div class="stat-label">Всего очков</div>
+                      </div>
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).seasonsParticipated }}</div>
+                        <div class="stat-label">Сезонов участий</div>
+                      </div>
+                    </div>
+
+                    <div class="stats-row">
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).averagePosition }}</div>
+                        <div class="stat-label">Среднее место</div>
+                      </div>
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).averageVictoriesPerMatch }}</div>
+                        <div class="stat-label">Средние победы/матч</div>
+                      </div>
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).bestPosition || 'N/A' }}</div>
+                        <div class="stat-label">Лучшее место</div>
+                      </div>
+                      <div class="stat-card">
+                        <div class="stat-number">{{ getDetailedPlayerStats(player.id).worstPosition || 'N/A' }}</div>
+                        <div class="stat-label">Худшее место</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Распределение по местам -->
+                  <div class="positions-breakdown">
+                    <h5>Распределение по местам</h5>
+                    <div class="position-stats">
+                      <div v-for="position in [1, 2, 3, 4, 5, 6]" :key="position" class="position-stat"
+                        :class="`position-${position}`">
+                        <div class="position-icon">{{ position }}</div>
+                        <div class="position-count">{{ getPositionCount(player.id, position) }}
+                        </div>
+                        <div class="position-label">{{ position === 1 ? 'место' : position === 2 ? 'место' : position
+                          === 3 ? 'место' : position === 4 ? 'место' : position === 5 ? 'место' : 'место' }}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Процентное соотношение -->
+                  <div class="percentage-breakdown" v-if="getDetailedPlayerStats(player.id).totalMatches > 0">
+                    <h5>Процентное соотношение</h5>
+                    <div class="percentage-stats">
+                      <div v-for="position in [1, 2, 3, 4, 5, 6]" :key="position" class="percentage-bar">
+                        <div class="percentage-label">{{ position }} место</div>
+                        <div class="progress-bar-container">
+                          <div class="progress-bar-fill" :class="`position-${position}-bg`"
+                            :style="{ width: `${(getPositionCount(player.id, position) / getDetailedPlayerStats(player.id).totalMatches * 100)}%` }">
+                          </div>
+                        </div>
+                        <div class="percentage-value">
+                          {{ Math.round((getPositionCount(player.id, position) /
+                            getDetailedPlayerStats(player.id).totalMatches * 100)) }}%
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1259,27 +1522,26 @@ onMounted(() => {
 <style scoped>
 .app {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  background: #1a1a1a;
   color: #ffffff;
-  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: "Montserrat", sans-serif;
   overflow-x: hidden;
   width: 100%;
   max-width: 100%;
 }
 
 .header {
-  background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
+  background: #ff6b35;
   padding: 20px 0 10px 0;
   text-align: center;
-  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+  border-bottom: 2px solid #ff6b35;
   width: 100%;
   overflow-x: hidden;
 }
 
 .title {
   margin: 0;
-  font-weight: 800;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  font-weight: 700;
 }
 
 .title-main {
@@ -1300,56 +1562,48 @@ onMounted(() => {
 .tab-navigation {
   display: flex;
   justify-content: center;
-  gap: 0;
+  gap: 2px;
   margin-top: 20px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 12px;
-  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 4px;
   width: fit-content;
   max-width: 100%;
   margin-left: auto;
   margin-right: auto;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
 
 .tab-btn {
-  padding: 14px 24px;
+  padding: 12px 20px;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-weight: 500;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   white-space: nowrap;
-  min-width: 120px;
+  min-width: 100px;
   flex: 1;
 }
 
 .tab-btn:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: #ffffff;
   background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-1px);
 }
 
 .tab-btn.active {
-  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  background: #ff6b35;
   color: #ffffff;
-  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
-  transform: translateY(-2px);
 }
 
 .tab-btn.active:hover {
-  background: linear-gradient(45deg, #ff6b35, #f7931e);
-  transform: translateY(-2px);
+  background: #ff6b35;
 }
 
 .container {
@@ -1361,24 +1615,21 @@ onMounted(() => {
 }
 
 .section {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 107, 53, 0.2);
-  border-radius: 10px;
-  padding: 25px;
-  margin-bottom: 25px;
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
 }
 
 .section-title {
   color: #ff6b35;
-  margin: 0 0 20px 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  margin: 0 0 16px 0;
+  font-size: 1.4rem;
+  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 
@@ -1415,45 +1666,39 @@ onMounted(() => {
 }
 
 .btn {
-  padding: 12px 20px;
+  padding: 10px 16px;
   border: none;
-  border-radius: 5px;
-  font-weight: 600;
+  border-radius: 4px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-family: 'Montserrat', sans-serif;
+  transition: background-color 0.2s ease;
 }
 
 .btn-primary {
-  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  background: #ff6b35;
   color: white;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(255, 107, 53, 0.4);
+  background: #e55a2b;
 }
 
 .btn-success {
-  background: linear-gradient(45deg, #28a745, #20c997);
+  background: #28a745;
   color: white;
 }
 
 .btn-success:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+  background: #218838;
 }
 
 .btn-danger {
-  background: linear-gradient(45deg, #dc3545, #c82333);
+  background: #dc3545;
   color: white;
 }
 
 .btn-danger:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+  background: #c82333;
 }
 
 .btn-small {
@@ -1484,13 +1729,12 @@ onMounted(() => {
 }
 
 .btn-secondary {
-  background: linear-gradient(45deg, #6c757d, #5a6268);
+  background: #6c757d;
   color: white;
 }
 
 .btn-secondary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
+  background: #5a6268;
 }
 
 .players-list {
@@ -1499,11 +1743,11 @@ onMounted(() => {
 }
 
 .player-card {
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 107, 53, 0.2);
-  border-radius: 8px;
-  transition: all 0.3s ease;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
 }
 
 .player-info {
@@ -1515,13 +1759,13 @@ onMounted(() => {
 .player-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .player-edit {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .player-edit-input {
@@ -1530,12 +1774,11 @@ onMounted(() => {
 
 .player-edit-controls {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .player-card:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: #ff6b35;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .player-name {
@@ -1583,6 +1826,27 @@ onMounted(() => {
   color: #ffffff;
 }
 
+.wins-input {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 14px;
+  width: 120px;
+  text-align: center;
+}
+
+.wins-input:focus {
+  outline: none;
+  border-color: #ff6b35;
+  box-shadow: 0 0 5px rgba(255, 107, 53, 0.3);
+}
+
+.wins-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .current-match-preview {
   background: rgba(255, 107, 53, 0.1);
   border: 1px solid rgba(255, 107, 53, 0.3);
@@ -1608,6 +1872,17 @@ onMounted(() => {
   border-bottom: none;
 }
 
+.wins {
+  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-size: 12px;
+  min-width: 60px;
+  text-align: center;
+}
+
 .position {
   font-weight: bold;
   color: #ff6b35;
@@ -1618,6 +1893,29 @@ onMounted(() => {
   color: #28a745;
   font-weight: bold;
   margin-left: auto;
+}
+
+.wins-simple {
+  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 10px;
+  min-width: 30px;
+  text-align: center;
+}
+
+.wins-badge {
+  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: bold;
+  font-size: 12px;
+  min-width: 40px;
+  text-align: center;
+  margin-right: 10px;
 }
 
 .leaderboard {
@@ -2151,7 +2449,8 @@ onMounted(() => {
 
 .seasons-count,
 .season-wins,
-.total-wins {
+.total-wins,
+.match-victories {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2205,6 +2504,217 @@ onMounted(() => {
 .available-player-card .player-name {
   font-weight: 500;
   color: #fff;
+}
+
+/* Детальная статистика игроков */
+.player-detailed-stats {
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.player-detailed-stats h4 {
+  margin: 0 0 12px 0;
+  color: #ff6b35;
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.player-detailed-stats h5 {
+  margin: 12px 0 8px 0;
+  color: #ff6b35;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+/* Обзор статистики */
+.stats-overview {
+  margin-bottom: 16px;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  transition: background-color 0.2s ease;
+}
+
+.stat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stat-number {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #ff6b35;
+  margin-bottom: 4px;
+}
+
+.stat-card .stat-label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 400;
+}
+
+/* Распределение по местам */
+.positions-breakdown {
+  margin-bottom: 16px;
+}
+
+.position-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+}
+
+.position-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  transition: background-color 0.2s ease;
+}
+
+.position-stat:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.position-stat.position-1 {
+  border: 1px solid #ffd700;
+}
+
+.position-stat.position-2 {
+  border: 1px solid #c0c0c0;
+}
+
+.position-stat.position-3 {
+  border: 1px solid #cd7f32;
+}
+
+.position-stat.position-4,
+.position-stat.position-5,
+.position-stat.position-6 {
+  border: 1px solid #6c757d;
+}
+
+.position-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 6px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.position-1 .position-icon {
+  background: #ffd700;
+  color: #333;
+}
+
+.position-2 .position-icon {
+  background: #c0c0c0;
+  color: #333;
+}
+
+.position-3 .position-icon {
+  background: #cd7f32;
+  color: white;
+}
+
+.position-4 .position-icon,
+.position-5 .position-icon,
+.position-6 .position-icon {
+  background: #6c757d;
+  color: white;
+}
+
+.position-count {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.position-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 400;
+}
+
+/* Процентное соотношение */
+.percentage-breakdown {
+  margin-bottom: 12px;
+}
+
+.percentage-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.percentage-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.percentage-label {
+  min-width: 60px;
+  font-weight: 500;
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.progress-bar-container {
+  flex: 1;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.position-1-bg {
+  background: #ffd700;
+}
+
+.position-2-bg {
+  background: #c0c0c0;
+}
+
+.position-3-bg {
+  background: #cd7f32;
+}
+
+.position-4-bg,
+.position-5-bg,
+.position-6-bg {
+  background: #6c757d;
+}
+
+.percentage-value {
+  min-width: 35px;
+  text-align: right;
+  font-weight: 500;
+  color: #ff6b35;
+  font-size: 0.8rem;
 }
 
 /* Responsive Design */
@@ -2487,6 +2997,83 @@ onMounted(() => {
     font-size: 0.8rem;
     margin-bottom: 12px;
   }
+
+  /* Детальная статистика игроков - мобильные стили */
+  .player-detailed-stats {
+    padding: 15px;
+    margin-top: 15px;
+  }
+
+  .player-detailed-stats h4 {
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+  }
+
+  .player-detailed-stats h5 {
+    font-size: 1rem;
+    margin: 15px 0 10px 0;
+  }
+
+  .stats-row {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .stat-card {
+    padding: 10px;
+  }
+
+  .stat-number {
+    font-size: 1.4rem;
+  }
+
+  .stat-card .stat-label {
+    font-size: 0.75rem;
+  }
+
+  .position-stats {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+  }
+
+  .position-stat {
+    padding: 10px;
+  }
+
+  .position-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
+    margin-bottom: 6px;
+  }
+
+  .position-count {
+    font-size: 1.2rem;
+  }
+
+  .position-label {
+    font-size: 0.7rem;
+  }
+
+  .percentage-bar {
+    gap: 10px;
+    padding: 6px 0;
+  }
+
+  .percentage-label {
+    min-width: 60px;
+    font-size: 0.8rem;
+  }
+
+  .progress-bar-container {
+    height: 16px;
+  }
+
+  .percentage-value {
+    min-width: 35px;
+    font-size: 0.8rem;
+  }
 }
 
 /* Mode Styles */
@@ -2516,10 +3103,10 @@ onMounted(() => {
 
 /* Podium Styles */
 .podium {
-  background: linear-gradient(135deg, rgba(255, 107, 53, 0.1), rgba(247, 147, 30, 0.1));
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 20px;
+  background: rgba(255, 107, 53, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
 }
 
 .podium-positions {
@@ -2558,63 +3145,61 @@ onMounted(() => {
 }
 
 .podium-avatar {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  background: #ff6b35;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   position: relative;
-  box-shadow: 0 8px 25px rgba(255, 107, 53, 0.3);
 }
 
 .podium-avatar.champion {
-  width: 100px;
-  height: 100px;
-  background: linear-gradient(45deg, #ffd700, #ffed4e);
+  width: 70px;
+  height: 70px;
+  background: #ffd700;
 }
 
 .podium-avatar .material-icons {
-  font-size: 40px;
+  font-size: 30px;
   color: white;
 }
 
 .podium-avatar.champion .material-icons {
-  font-size: 50px;
+  font-size: 35px;
   color: #333;
 }
 
 .podium-medal {
   position: relative;
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 10px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  margin-bottom: 8px;
 }
 
 .podium-medal.gold {
-  background: linear-gradient(45deg, #ffd700, #ffed4e);
+  background: #ffd700;
   color: #333;
 }
 
 .podium-medal.silver {
-  background: linear-gradient(45deg, #c0c0c0, #e8e8e8);
+  background: #c0c0c0;
   color: #333;
 }
 
 .podium-medal.bronze {
-  background: linear-gradient(45deg, #cd7f32, #daa520);
+  background: #cd7f32;
   color: white;
 }
 
 .podium-medal.default {
-  background: linear-gradient(45deg, #6c757d, #495057);
+  background: #6c757d;
   color: white;
 }
 
@@ -2641,46 +3226,43 @@ onMounted(() => {
 .podium-stats {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   text-align: center;
 }
 
 .podium-stats .stat {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.8);
+  line-height: 1.2;
 }
 
 .podium-base {
-  width: 120px;
-  border-radius: 10px 10px 0 0;
+  width: 100px;
+  border-radius: 8px 8px 0 0;
   position: relative;
 }
 
 .podium-base-1 {
-  height: 120px;
-  background: linear-gradient(45deg, #ffd700, #ffed4e);
-  box-shadow: 0 -5px 20px rgba(255, 215, 0, 0.3);
+  height: 80px;
+  background: #ffd700;
 }
 
 .podium-base-2 {
-  height: 90px;
-  background: linear-gradient(45deg, #c0c0c0, #e8e8e8);
-  box-shadow: 0 -5px 20px rgba(192, 192, 192, 0.3);
+  height: 60px;
+  background: #c0c0c0;
 }
 
 .podium-base-3 {
-  height: 70px;
-  background: linear-gradient(45deg, #cd7f32, #daa520);
-  box-shadow: 0 -5px 20px rgba(205, 127, 50, 0.3);
+  height: 50px;
+  background: #cd7f32;
 }
 
 /* Default podium base for ranks 4+ */
 .podium-base-4,
 .podium-base-5,
 .podium-base-6 {
-  height: 50px;
-  background: linear-gradient(45deg, #6c757d, #495057);
-  box-shadow: 0 -5px 20px rgba(108, 117, 125, 0.3);
+  height: 40px;
+  background: #6c757d;
 }
 
 /* Enhanced Leaderboard List */
@@ -2693,24 +3275,20 @@ onMounted(() => {
 .leaderboard-item-enhanced {
   display: flex;
   align-items: center;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 107, 53, 0.2);
-  border-radius: 15px;
-  transition: all 0.3s ease;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
   position: relative;
 }
 
 .leaderboard-item-enhanced:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 107, 53, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(255, 107, 53, 0.2);
 }
 
 .leaderboard-item-enhanced.top-three {
   border-width: 2px;
-  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.15);
 }
 
 .player-rank {
@@ -2718,49 +3296,45 @@ onMounted(() => {
 }
 
 .rank-circle {
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 1.2rem;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
 .rank-circle.gold {
-  background: linear-gradient(45deg, #ffd700, #ffed4e);
+  background: #ffd700;
   color: #333;
-  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
 }
 
 .rank-circle.silver {
-  background: linear-gradient(45deg, #c0c0c0, #e8e8e8);
+  background: #c0c0c0;
   color: #333;
-  box-shadow: 0 4px 15px rgba(192, 192, 192, 0.3);
 }
 
 .rank-circle.bronze {
-  background: linear-gradient(45deg, #cd7f32, #daa520);
+  background: #cd7f32;
   color: white;
-  box-shadow: 0 4px 15px rgba(205, 127, 50, 0.3);
 }
 
 .rank-circle.default {
-  background: linear-gradient(45deg, #6c757d, #495057);
+  background: #6c757d;
   color: white;
 }
 
 .player-avatar-small {
-  width: 45px;
-  height: 45px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  background: #ff6b35;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 20px;
-  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.2);
+  margin-right: 16px;
 }
 
 .player-avatar-small .material-icons {
@@ -2829,6 +3403,12 @@ onMounted(() => {
 .stat-value {
   font-weight: 600;
   color: #fff;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
 }
 
 .player-badge {

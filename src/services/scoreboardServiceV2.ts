@@ -50,6 +50,7 @@ class ScoreboardServiceV2 {
             *,
             match_players (
               player_id,
+              wins_in_match,
               position,
               points_earned
             )
@@ -76,6 +77,7 @@ class ScoreboardServiceV2 {
           date: new Date(match.date).toLocaleDateString("ru-RU"),
           players: match.match_players.map((mp: any) => ({
             playerId: mp.player_id,
+            winsInMatch: mp.wins_in_match || 0,
             position: mp.position,
             pointsEarned: mp.points_earned,
           })),
@@ -284,6 +286,9 @@ class ScoreboardServiceV2 {
 
   async updateMatch(matchId: number, players: MatchPlayer[]): Promise<boolean> {
     try {
+      // Сначала рассчитываем позиции на основе количества побед
+      const playersWithPositions = this.calculatePositionsFromWins(players);
+
       // Update match players
       const { error: deleteError } = await supabase
         .from("match_players")
@@ -292,11 +297,12 @@ class ScoreboardServiceV2 {
 
       if (deleteError) throw deleteError;
 
-      const matchPlayerInserts = players.map((mp) => ({
+      const matchPlayerInserts = playersWithPositions.map((mp) => ({
         match_id: matchId,
         player_id: mp.playerId,
+        wins_in_match: mp.winsInMatch,
         position: mp.position,
-        points_earned: this.calculatePoints(mp.position, players),
+        points_earned: this.calculatePoints(mp.position, playersWithPositions),
       }));
 
       const { error: insertError } = await supabase
@@ -315,7 +321,7 @@ class ScoreboardServiceV2 {
       if (matchError) throw matchError;
 
       // Recalculate stats for all affected players
-      for (const mp of players) {
+      for (const mp of playersWithPositions) {
         await this.recalculatePlayerStats(matchData.season_id, mp.playerId);
       }
 
@@ -395,6 +401,10 @@ class ScoreboardServiceV2 {
     matchPlayers: MatchPlayer[]
   ): Promise<Match | null> {
     try {
+      // Сначала рассчитываем позиции на основе количества побед
+      const playersWithPositions =
+        this.calculatePositionsFromWins(matchPlayers);
+
       // Создаем матч
       const { data: matchData, error: matchError } = await supabase
         .from("matches")
@@ -410,11 +420,12 @@ class ScoreboardServiceV2 {
       if (matchError) throw matchError;
 
       // Добавляем игроков матча
-      const matchPlayerInserts = matchPlayers.map((mp) => ({
+      const matchPlayerInserts = playersWithPositions.map((mp) => ({
         match_id: matchData.id,
         player_id: mp.playerId,
+        wins_in_match: mp.winsInMatch,
         position: mp.position,
-        points_earned: this.calculatePoints(mp.position, matchPlayers),
+        points_earned: this.calculatePoints(mp.position, playersWithPositions),
       }));
 
       const { error: playersError } = await supabase
@@ -424,17 +435,21 @@ class ScoreboardServiceV2 {
       if (playersError) throw playersError;
 
       // Обновляем статистику игроков
-      for (const mp of matchPlayers) {
-        await this.updatePlayerStats(seasonId, mp.playerId, matchPlayers);
+      for (const mp of playersWithPositions) {
+        await this.updatePlayerStats(
+          seasonId,
+          mp.playerId,
+          playersWithPositions
+        );
       }
 
       return {
         id: matchData.id,
         seasonId: matchData.season_id,
         date: new Date(matchData.date).toLocaleDateString("ru-RU"),
-        players: matchPlayers.map((mp) => ({
+        players: playersWithPositions.map((mp) => ({
           ...mp,
-          pointsEarned: this.calculatePoints(mp.position, matchPlayers),
+          pointsEarned: this.calculatePoints(mp.position, playersWithPositions),
         })),
       };
     } catch (error) {
@@ -453,6 +468,7 @@ class ScoreboardServiceV2 {
           *,
           match_players (
             player_id,
+            wins_in_match,
             position
           )
         `
@@ -483,6 +499,34 @@ class ScoreboardServiceV2 {
   }
 
   // === HELPER METHODS ===
+
+  // Функция для расчета позиций на основе количества побед
+  calculatePositionsFromWins(players: MatchPlayer[]): MatchPlayer[] {
+    // Сортируем игроков по количеству побед (по убыванию)
+    const sorted = [...players].sort((a, b) => b.winsInMatch - a.winsInMatch);
+
+    let currentPosition = 1;
+    const result: MatchPlayer[] = [];
+
+    for (let i = 0; i < sorted.length; i++) {
+      const player = sorted[i];
+
+      // Если это не первый игрок и у него такое же количество побед, как у предыдущего
+      if (i > 0 && sorted[i - 1].winsInMatch === player.winsInMatch) {
+        // Оставляем ту же позицию
+      } else {
+        // Обновляем позицию
+        currentPosition = i + 1;
+      }
+
+      result.push({
+        ...player,
+        position: currentPosition,
+      });
+    }
+
+    return result;
+  }
 
   calculatePoints(position: number, allPlayers: MatchPlayer[]): number {
     // Count how many players share the same position
@@ -557,12 +601,14 @@ class ScoreboardServiceV2 {
         .from("match_players")
         .select(
           `
+          wins_in_match,
           position,
           matches!inner (
             id,
             season_id,
             match_players (
               player_id,
+              wins_in_match,
               position
             )
           )
@@ -580,6 +626,7 @@ class ScoreboardServiceV2 {
         const allPlayersInMatch = (match as any).matches.match_players.map(
           (mp: any) => ({
             playerId: mp.player_id,
+            winsInMatch: mp.wins_in_match,
             position: mp.position,
           })
         );
