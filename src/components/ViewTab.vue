@@ -518,7 +518,7 @@ const getProgressPercentage = (points: number) => {
                   </div>
                   <div class="wins-count">
                     <span class="material-symbols-outlined">trending_up</span>
-                    {{ player.totalMatchVictories }} матчей
+                    {{ player.totalMatchVictories }} побед в матчах
                   </div>
                   <div class="wins-count">
                     <span class="material-symbols-outlined">star</span>
