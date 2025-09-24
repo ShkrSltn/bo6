@@ -98,9 +98,6 @@ const globalWinsRanking = computed(() => {
   }>()
 
   props.seasons.forEach(season => {
-    // Пропускаем незавершенные сезоны
-    if (season.isActive || !season.endDate) return
-    
     let seasonWinners: number[] = []
     if (season.players.length > 0) {
       const maxPoints = Math.max(...season.players.map(p => p.points))
@@ -111,7 +108,8 @@ const globalWinsRanking = computed(() => {
 
     season.players.forEach(player => {
       const existing = playerStatsMap.get(player.playerId)
-      const isSeasonWinner = seasonWinners.includes(player.playerId)
+      // Проверяем чемпионство только для завершенных сезонов
+      const isSeasonWinner = (season.isActive || !season.endDate) ? false : seasonWinners.includes(player.playerId)
 
       const matchVictories = season.matches.reduce((total, match) => {
         const playerInMatch = match.players.find(p => p.playerId === player.playerId)
