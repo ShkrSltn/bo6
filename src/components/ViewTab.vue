@@ -94,6 +94,7 @@ const globalWinsRanking = computed(() => {
     seasonWins: number;
     seasonsParticipated: number;
     totalPoints: number;
+    topuhs: number;
   }>()
 
   props.seasons.forEach(season => {
@@ -126,6 +127,7 @@ const globalWinsRanking = computed(() => {
           totalMatchWins: player.wins,
           totalMatchVictories: matchVictories,
           totalPoints: player.points,
+          topuhs: player.playerId === 7 ? 1 : 0,
           seasonWins: isSeasonWinner ? 1 : 0,
           seasonsParticipated: 1
         })
@@ -140,6 +142,7 @@ const globalWinsRanking = computed(() => {
       totalMatchWins: data.totalMatchWins,
       totalMatchVictories: data.totalMatchVictories,
       totalPoints: data.totalPoints,
+      topuhs: data.topuhs,
       seasonWins: data.seasonWins,
       seasonsParticipated: data.seasonsParticipated
     }))
@@ -505,20 +508,24 @@ const getProgressPercentage = (points: number) => {
                 <div class="wins-player-name">{{ player.name }}</div>
                 <div class="wins-stats">
                   <div class="wins-count">
-                    <span class="material-icons">emoji_events</span>
+                    <span class="material-symbols-outlined">emoji_events</span>
                     {{ player.seasonWins }} чемпионств
                   </div>
                   <div class="wins-count">
-                    <span class="material-icons">military_tech</span>
+                    <span class="material-symbols-outlined">military_tech</span>
                     {{ player.totalMatchWins }} побед дня
                   </div>
                   <div class="wins-count">
-                    <span class="material-icons">trending_up</span>
+                    <span class="material-symbols-outlined">trending_up</span>
                     {{ player.totalMatchVictories }} матчей
                   </div>
                   <div class="wins-count">
-                    <span class="material-icons">star</span>
+                    <span class="material-symbols-outlined">star</span>
                     {{ player.totalPoints }} очков
+                  </div>
+                  <div class="wins-count">
+                    <span class="material-symbols-outlined"> footprint</span>
+                    {{ player.topuhs }} топухов
                   </div>
                 </div>
               </div>
@@ -1458,8 +1465,8 @@ const getProgressPercentage = (points: number) => {
   color: rgba(255, 255, 255, 0.7);
 }
 
-.wins-count .material-icons {
-  font-size: 14px;
+.wins-count .material-symbols-outlined {
+  font-size: 18px;
   color: #ff6b35;
 }
 
