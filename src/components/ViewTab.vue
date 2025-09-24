@@ -98,6 +98,9 @@ const globalWinsRanking = computed(() => {
   }>()
 
   props.seasons.forEach(season => {
+    // Пропускаем незавершенные сезоны
+    if (season.isActive || !season.endDate) return
+    
     let seasonWinners: number[] = []
     if (season.players.length > 0) {
       const maxPoints = Math.max(...season.players.map(p => p.points))
