@@ -21,7 +21,7 @@
         </h3>
         <div class="rule-list">
           <div class="rule-item">
-            <span class="rule-number">1</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Термин</strong>
               <p>Термин - священна, термин всегда требует сайгы.</p>
@@ -29,7 +29,7 @@
           </div>
           
           <div class="rule-item">
-            <span class="rule-number">2</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Топух</strong>
               <p>Если игрок выходит с матча во время игры, то он получает -1 победу за этот день.</p>
@@ -37,7 +37,7 @@
           </div>
 
           <div class="rule-item">
-            <span class="rule-number">3</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Круг</strong>
               <p>Круг - это штурмовик, инженер, эшшек, дробовик, снайпер. Все игры, что нарушают круг не будут подсчитываться.</p>
@@ -45,7 +45,7 @@
           </div>
 
           <div class="rule-item">
-            <span class="rule-number">3</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Аглама Ислам</strong>
               <p>Нельзя использовать холодное оружие (кирку, катану и т.д) во время игры.</p>
@@ -54,7 +54,7 @@
 
 
           <div class="rule-item">
-            <span class="rule-number">3</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Аглама Ислам 2.0</strong>
               <p>Все серии очков, кроме "телефона" и радара - запрещены.</p>
@@ -62,7 +62,7 @@
           </div>
 
           <div class="rule-item">
-            <span class="rule-number">3</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Вызов</strong>
               <p>Сезон - есть сезон, любые вызовы между игроками, которые нарушают священный круг, будут рассматриваться как несоревновательные игры и не будут подсчитываться.</p>
@@ -71,7 +71,7 @@
 
 
           <div class="rule-item">
-            <span class="rule-number">3</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Аглама Лачо</strong>
               <p>Любые тактические гранаты, то есть оглушители, электрические ловушки и т.д. - запрещены. Можно использовать только шприц.</p>
@@ -79,7 +79,7 @@
           </div>
           
           <div class="rule-item">
-            <span class="rule-number">4</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Ниндзя</strong>
               <p>Нельзя брать перк ниндзя, зачем тогда у всех такие ебейшие наушники?</p>
@@ -87,7 +87,7 @@
           </div>
 
           <div class="rule-item">
-            <span class="rule-number">5</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Дробовик</strong>
               <p>Во вермя игры с дробовиком, нельзя использовать гранаты, мины и тд.</p>
@@ -95,7 +95,7 @@
           </div>
 
           <div class="rule-item">
-            <span class="rule-number">5</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Эшшек</strong>
               <p>Во вермя игры с Эшшек, нельзя использовать второе оружие.</p>
@@ -103,7 +103,7 @@
           </div>
           
           <div class="rule-item">
-            <span class="rule-number">6</span>
+            <span class="rule-number"></span>
             <div class="rule-text">
               <strong>Подсчет очков</strong>
               <p>Очки начисляются за занятые места в матчах: 1-е место - 3 очка, 2-е место - 1 очко.</p>
@@ -161,7 +161,7 @@
               </div>
               <div class="tie-content">
                 <strong>2 первых места</strong>
-                <p>Каждый игрок получает 2.5 очка (среднее между 3 и 1)</p>
+                <p>Каждый игрок получает 2 очка</p>
               </div>
             </div>
             <div class="tie-rule">
@@ -171,7 +171,7 @@
               </div>
               <div class="tie-content">
                 <strong>2 вторых места</strong>
-                <p>Каждый игрок получает 1.5 очка (среднее между 1 и 0)</p>
+                <p>Каждый игрок получает 0.5 очка</p>
               </div>
             </div>
             <div class="tie-rule">
@@ -266,6 +266,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  counter-reset: rule-counter;
 }
 
 .rule-item {
@@ -275,6 +276,7 @@
   background: rgba(255, 255, 255, 0.02);
   border-radius: 8px;
   transition: all 0.3s ease;
+  counter-increment: rule-counter;
 }
 
 .rule-item:hover {
@@ -294,6 +296,10 @@
   font-weight: 700;
   font-size: 0.9rem;
   flex-shrink: 0;
+}
+
+.rule-number::before {
+  content: counter(rule-counter);
 }
 
 .rule-text {
