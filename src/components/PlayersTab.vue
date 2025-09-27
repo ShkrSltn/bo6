@@ -48,6 +48,10 @@ const getSeasonWinsForPlayer = (playerId: number) => {
   return props.seasons.reduce((total, season) => {
     if (season.players.length === 0) return total
 
+    // Проверяем чемпионство только для завершенных сезонов
+    const isSeasonCompleted = !season.isActive && season.endDate
+    if (!isSeasonCompleted) return total
+
     const maxPoints = Math.max(...season.players.map(p => p.points))
     const seasonWinners = season.players
       .filter(p => p.points === maxPoints)
@@ -84,10 +88,14 @@ const getDetailedPlayerStats = (playerId: number) => {
       stats.totalPoints += playerInSeason.points
 
       if (season.players.length > 0) {
-        const maxPoints = Math.max(...season.players.map(p => p.points))
-        const seasonWinners = season.players.filter(p => p.points === maxPoints)
-        if (seasonWinners.some(w => w.playerId === playerId)) {
-          stats.seasonWins++
+        // Проверяем чемпионство только для завершенных сезонов
+        const isSeasonCompleted = !season.isActive && season.endDate
+        if (isSeasonCompleted) {
+          const maxPoints = Math.max(...season.players.map(p => p.points))
+          const seasonWinners = season.players.filter(p => p.points === maxPoints)
+          if (seasonWinners.some(w => w.playerId === playerId)) {
+            stats.seasonWins++
+          }
         }
       }
 
