@@ -413,13 +413,13 @@ class ScoreboardService {
 
         if (position === 1) {
           if (playersAtPosition === 1) return 3
-          if (playersAtPosition === 2) return 2.5
+          if (playersAtPosition === 2) return 2
           return 2
         }
 
         if (position === 2) {
           if (playersAtPosition === 1) return 1
-          if (playersAtPosition === 2) return 1.5
+          if (playersAtPosition === 2) return 0.5
           return 0
         }
 

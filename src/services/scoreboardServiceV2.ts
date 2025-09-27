@@ -536,13 +536,13 @@ class ScoreboardServiceV2 {
 
     if (position === 1) {
       if (playersAtPosition === 1) return 3; // Single 1st place
-      if (playersAtPosition === 2) return 2.5; // Two 1st places: (3+1)/2 = 2
+      if (playersAtPosition === 2) return 2; // Two 1st places get 2 points each
       return 2; // Three or more 1st places: (3+1+0)/3 = 1.33, округляем до 2
     }
 
     if (position === 2) {
       if (playersAtPosition === 1) return 1; // Single 2nd place
-      if (playersAtPosition === 2) return 1.5; // Two 2nd places get 1.5 each
+      if (playersAtPosition === 2) return 0.5; // Two 2nd places get 0.5 points each
       return 0; // Three or more 2nd places get 0
     }
 
