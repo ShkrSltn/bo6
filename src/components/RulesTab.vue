@@ -97,8 +97,8 @@
           <div class="rule-item">
             <span class="rule-number"></span>
             <div class="rule-text">
-              <strong>Эшшек</strong>
-              <p>Во вермя игры с Эшшек, нельзя использовать второе оружие.</p>
+              <strong>Эшшек + Cнайпер</strong>
+              <p>Во вермя игры с Эшшек или со Снайпером, нельзя использовать второе оружие.</p>
             </div>
           </div>
           
