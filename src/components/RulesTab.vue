@@ -77,15 +77,6 @@
               <p>Любые тактические гранаты, то есть оглушители, электрические ловушки и т.д. - запрещены. Можно использовать только шприц.</p>
             </div>
           </div>
-
-
-          <div class="rule-item">
-            <span class="rule-number">3</span>
-            <div class="rule-text">
-              <strong>Аглама Ислам 2.0</strong>
-              <p>Все серии очков, кроме "телефона" и радара - запрещены.</p>
-            </div>
-          </div>
           
           <div class="rule-item">
             <span class="rule-number">4</span>
