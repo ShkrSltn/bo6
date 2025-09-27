@@ -43,6 +43,49 @@
               <p>Круг - это штурмовик, инженер, эшшек, дробовик, снайпер. Все игры, что нарушают круг не будут подсчитываться.</p>
             </div>
           </div>
+
+          <div class="rule-item">
+            <span class="rule-number">3</span>
+            <div class="rule-text">
+              <strong>Аглама Ислам</strong>
+              <p>Нельзя использовать холодное оружие (кирку, катану и т.д) во время игры.</p>
+            </div>
+          </div>
+
+
+          <div class="rule-item">
+            <span class="rule-number">3</span>
+            <div class="rule-text">
+              <strong>Аглама Ислам 2.0</strong>
+              <p>Все серии очков, кроме "телефона" и радара - запрещены.</p>
+            </div>
+          </div>
+
+          <div class="rule-item">
+            <span class="rule-number">3</span>
+            <div class="rule-text">
+              <strong>Вызов</strong>
+              <p>Сезон - есть сезон, любые вызовы между игроками, которые нарушают священный круг, будут рассматриваться как несоревновательные игры и не будут подсчитываться.</p>
+            </div>
+          </div>
+
+
+          <div class="rule-item">
+            <span class="rule-number">3</span>
+            <div class="rule-text">
+              <strong>Аглама Лачо</strong>
+              <p>Любые тактические гранаты, то есть оглушители, электрические ловушки и т.д. - запрещены. Можно использовать только шприц.</p>
+            </div>
+          </div>
+
+
+          <div class="rule-item">
+            <span class="rule-number">3</span>
+            <div class="rule-text">
+              <strong>Аглама Ислам 2.0</strong>
+              <p>Все серии очков, кроме "телефона" и радара - запрещены.</p>
+            </div>
+          </div>
           
           <div class="rule-item">
             <span class="rule-number">4</span>
