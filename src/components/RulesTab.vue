@@ -93,6 +93,14 @@
               <p>Во вермя игры с дробовиком, нельзя использовать гранаты, мины и тд.</p>
             </div>
           </div>
+
+          <div class="rule-item">
+            <span class="rule-number">5</span>
+            <div class="rule-text">
+              <strong>Эшшек</strong>
+              <p>Во вермя игры с Эшшек, нельзя использовать второе оружие.</p>
+            </div>
+          </div>
           
           <div class="rule-item">
             <span class="rule-number">6</span>
